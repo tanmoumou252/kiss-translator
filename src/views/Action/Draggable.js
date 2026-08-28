@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { limitNumber } from "../../libs/utils";
+import { limitFloat, limitNumber } from "../../libs/utils";
 import { isMobile } from "../../libs/mobile";
 import { putFab } from "../../libs/storage";
 import { debounce } from "../../libs/utils";
@@ -72,11 +72,11 @@ export const getEdgePosition = ({
   if (edge === "left" || edge === "right") {
     const minY = 0;
     const maxY = Math.max(minY, windowHeight - height / 2);
-    top = limitNumber(top, minY, maxY);
+    top = limitFloat(top, minY, maxY);
   } else {
     const minX = -width / 2;
     const maxX = Math.max(minX, windowWidth - width / 2);
-    left = limitNumber(left, minX, maxX);
+    left = limitFloat(left, minX, maxX);
   }
 
   return { x: left, y: top };

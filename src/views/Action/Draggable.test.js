@@ -141,6 +141,21 @@ describe("Draggable FAB edge locking", () => {
     expect(draggable.style.transform).toBe(expected);
   });
 
+  test("preserves fractional proportional position across uneven viewport resizes", () => {
+    let fab = renderFab({ edge: "top", left: 300, top: -20 });
+
+    setViewport(1001, 400);
+    fab = rerenderFab(fab, { windowSize: { w: 1001, h: 400 } });
+    expect(draggable.style.transform).toBe("translate(500.5px, -20px)");
+
+    setViewport(600, 400);
+    rerenderFab(fab, { windowSize: { w: 600, h: 400 } });
+    act(() => jest.runOnlyPendingTimers());
+
+    expect(draggable.style.transform).toBe("translate(300px, -20px)");
+    expect(putFab).toHaveBeenLastCalledWith({ x: 300, y: -20, edge: "top" });
+  });
+
   test("hovering expands the FAB without changing its saved edge", () => {
     renderFab();
 
