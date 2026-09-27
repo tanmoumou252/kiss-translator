@@ -41,21 +41,25 @@ import {
 import { DEFAULT_PARAMS } from "../../subtitle/sentenceBreaker";
 import { buildBilingualVtt } from "../../subtitle/vtt";
 import TextareaResizeGrip from "../../components/TextareaResizeGrip";
-import useTextareaHeightLock from "../../hooks/useTextareaHeightLock";
+import useTextareaHeightLock, {
+  useTextareaGripStyle,
+} from "../../hooks/useTextareaHeightLock";
 
 const SAMPLE_BASE_URL = `${process.env.REACT_APP_SITEURL}/subtitle-samples`;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_UPLOAD_EVENTS = 100000;
 // 原始数据和结果框默认显示五行，并允许用户从右下角按需拉高查看区域。
-const RESIZABLE_TEXT_FIELD_SX = {
+// firefox-native（isNativeGrip）时放开原生纵向 resize（不得再用 !important
+// 压死接入层内联 resize）；其余样式模式仍用 !important 压制 textarea 写高。
+const makeResizableTextFieldSx = (isNativeGrip) => ({
   "& .MuiInputBase-root": {
     overflow: "visible",
   },
   '& textarea:not([aria-hidden="true"])': {
-    resize: "none !important",
+    resize: isNativeGrip ? "vertical" : "none !important",
     overflow: "auto !important",
   },
-};
+});
 
 /** 用命名占位符组装包含运行时数据的多语言文案。 */
 function formatI18n(i18n, key, fallback, values = {}) {
@@ -182,8 +186,18 @@ export default function SubtitleSegmentationPlayground({
   // 索引只应拉取一次，通过 ref 读取当前语言，避免翻译函数变化导致重复请求。
   const i18nRef = useRef(i18n);
   i18nRef.current = i18n;
-  const sourceHeightLock = useTextareaHeightLock("subtitle-playground-source");
-  const resultHeightLock = useTextareaHeightLock("subtitle-playground-result");
+  const gripStyle = useTextareaGripStyle();
+  const isNativeGrip = gripStyle === "firefox-native";
+  const sourceHeightLock = useTextareaHeightLock(
+    "subtitle-playground-source",
+    undefined,
+    isNativeGrip
+  );
+  const resultHeightLock = useTextareaHeightLock(
+    "subtitle-playground-result",
+    undefined,
+    isNativeGrip
+  );
 
   const segApi = useMemo(
     () =>
@@ -809,6 +823,7 @@ export default function SubtitleSegmentationPlayground({
             InputProps={{
               readOnly: true,
               endAdornment:
+                !isNativeGrip &&
                 (sourceText.trim() ||
                   sourceHeightLock.lockedHeight != null) ? (
                   <TextareaResizeGrip
@@ -816,18 +831,22 @@ export default function SubtitleSegmentationPlayground({
                     onResize={sourceHeightLock.applyHeight}
                     value={sourceHeightLock.lockedHeight}
                     label={i18n("field_resize_height")}
+                    variant={gripStyle}
                   />
                 ) : null,
             }}
             inputProps={{
               className: "kt-resizable-textarea",
-              style: { resize: "none", overflow: "auto" },
+              style: {
+                resize: isNativeGrip ? "vertical" : "none",
+                overflow: "auto",
+              },
               "aria-label": i18n(
                 "subtitle_playground_source_json",
                 "原始字幕 JSON"
               ),
             }}
-            sx={RESIZABLE_TEXT_FIELD_SX}
+            sx={makeResizableTextFieldSx(isNativeGrip)}
           />
         </Box>
         <Box sx={{ minWidth: 0 }}>
@@ -845,6 +864,7 @@ export default function SubtitleSegmentationPlayground({
               InputProps={{
                 readOnly: true,
                 endAdornment:
+                  !isNativeGrip &&
                   ((resultText || "").trim() ||
                     resultHeightLock.lockedHeight != null) ? (
                     <TextareaResizeGrip
@@ -852,15 +872,19 @@ export default function SubtitleSegmentationPlayground({
                       onResize={resultHeightLock.applyHeight}
                       value={resultHeightLock.lockedHeight}
                       label={i18n("field_resize_height")}
+                      variant={gripStyle}
                     />
                   ) : null,
               }}
               inputProps={{
                 className: "kt-resizable-textarea",
-                style: { resize: "none", overflow: "auto" },
+                style: {
+                  resize: isNativeGrip ? "vertical" : "none",
+                  overflow: "auto",
+                },
                 "aria-label": i18n("subtitle_playground_result", "断句结果"),
               }}
-              sx={RESIZABLE_TEXT_FIELD_SX}
+              sx={makeResizableTextFieldSx(isNativeGrip)}
             />
             <Stack
               direction="row"

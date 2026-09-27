@@ -47,7 +47,9 @@ import { isSameTranslationLanguage } from "../../libs/language";
 import { createMenuKeyDownHandler } from "../../libs/menuFocus";
 import { isShadowHostMoving } from "../../libs/shadowHost";
 import TextareaResizeGrip from "../../components/TextareaResizeGrip";
-import useTextareaHeightLock from "../../hooks/useTextareaHeightLock";
+import useTextareaHeightLock, {
+  useTextareaGripStyle,
+} from "../../hooks/useTextareaHeightLock";
 
 export const formatLanguageOptionName = (name) => {
   const parts = String(name || "")
@@ -178,8 +180,12 @@ export default function TranForm({
   const focusedTextControlRef = useRef(null);
   const previousSimpleStyleRef = useRef(simpleStyle);
   const [isShadowMenu, setIsShadowMenu] = useState(false);
+  const gripStyle = useTextareaGripStyle();
+  const isNativeGrip = gripStyle === "firefox-native";
   const sourceHeightLock = useTextareaHeightLock(
-    isPlaygound ? "tranform-source-playground" : "tranform-source"
+    isPlaygound ? "tranform-source-playground" : "tranform-source",
+    undefined,
+    isNativeGrip
   );
   const setInputRef = useCallback((input) => {
     inputRef.current = input;
@@ -825,7 +831,7 @@ export default function TranForm({
               inputProps={{
                 className: "kt-resizable-textarea",
                 style: {
-                  resize: "none",
+                  resize: isNativeGrip ? "vertical" : "none",
                   ...(isPlaygound
                     ? {}
                     : { boxSizing: "border-box", paddingInlineEnd: 16 }),
@@ -913,15 +919,17 @@ export default function TranForm({
                       </IconButton>
                     )}
                   </Stack>
-                  {(editText.trim() ||
-                    sourceHeightLock.lockedHeight != null) && (
-                    <TextareaResizeGrip
-                      target={sourceHeightLock.textareaRef}
-                      onResize={sourceHeightLock.applyHeight}
-                      value={sourceHeightLock.lockedHeight}
-                      label={i18n("field_resize_height")}
-                    />
-                  )}
+                  {!isNativeGrip &&
+                    (editText.trim() ||
+                      sourceHeightLock.lockedHeight != null) && (
+                      <TextareaResizeGrip
+                        target={sourceHeightLock.textareaRef}
+                        onResize={sourceHeightLock.applyHeight}
+                        value={sourceHeightLock.lockedHeight}
+                        label={i18n("field_resize_height")}
+                        variant={gripStyle}
+                      />
+                    )}
                   </>
                 ),
               }}

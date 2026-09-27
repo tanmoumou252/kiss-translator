@@ -7,7 +7,7 @@ import TextareaResizeGrip from "./TextareaResizeGrip";
 
 const ORIGINAL_INNER_HEIGHT = window.innerHeight;
 
-function GripHost({ onResize, value }) {
+function GripHost({ onResize, value, variant }) {
   const targetRef = useRef(null);
   return (
     <Box className="MuiInputBase-root" sx={{ position: "relative" }}>
@@ -17,17 +17,18 @@ function GripHost({ onResize, value }) {
         onResize={onResize}
         value={value}
         label="field_resize_height"
+        variant={variant}
       />
     </Box>
   );
 }
 
-async function renderGrip(onResize, value) {
+async function renderGrip(onResize, value, variant) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   await act(async () => {
-    root.render(<GripHost onResize={onResize} value={value} />);
+    root.render(<GripHost onResize={onResize} value={value} variant={variant} />);
   });
   const grip = container.querySelector('[role="separator"]');
   const fieldRoot = container.querySelector(".MuiInputBase-root");
@@ -212,5 +213,43 @@ describe("TextareaResizeGrip", () => {
     await act(async () => root.unmount());
     // 清理本用例注入的 style 标签（afterEach 只清 body，不清 head）。
     cache.sheet.flush();
+  });
+
+  // variant 可配置化：默认（未传/未知值）回落同心双弧；upstream-chrome
+  // 渲染作者手绘斜杠（fill 放 svg 根、path 不带 fill）；hidden 渲染空
+  // svg 保留热区。字符串契约锁定 path d 逐字值，防资产漂移。
+  test("defaults to the concentric arc when no variant is provided", async () => {
+    const { grip, root } = await renderGrip(jest.fn(), 120);
+    const paths = grip.querySelectorAll("svg path");
+    expect(paths).toHaveLength(2);
+    expect(paths[0].getAttribute("d")).toBe(
+      "M15 5V9C15 12.3137 12.3137 15 9 15H5"
+    );
+    await act(async () => root.unmount());
+  });
+
+  test("renders the upstream chrome slash with fill on the svg root only", async () => {
+    const { grip, root } = await renderGrip(
+      jest.fn(),
+      120,
+      "upstream-chrome"
+    );
+    const svg = grip.querySelector("svg");
+    expect(svg.getAttribute("fill")).toBe("currentColor");
+    const path = svg.querySelector("path");
+    expect(path.getAttribute("d")).toBe(
+      "M15 3L3 15h2.5L15 5.5V3zM15 8L8 15h2.5l4.5-4.5V8zM15 13l-2 2h2v-2z"
+    );
+    // fill 归属 svg 根（资产源 :170），path 自身不得携带 fill。
+    expect(path.getAttribute("fill")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  test("renders an empty svg for the hidden variant while keeping the hot zone", async () => {
+    const { grip, root } = await renderGrip(jest.fn(), 120, "hidden");
+    const svg = grip.querySelector("svg");
+    expect(svg).not.toBeNull();
+    expect(svg.querySelectorAll("path, line, circle").length).toBe(0);
+    await act(async () => root.unmount());
   });
 });

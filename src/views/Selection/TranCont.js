@@ -16,7 +16,9 @@ import { parseMathInText } from "../../libs/mathParse";
 import CopyBtn from "./CopyBtn";
 import { BrowserTtsBtn } from "./AudioBtn";
 import TextareaResizeGrip from "../../components/TextareaResizeGrip";
-import useTextareaHeightLock from "../../hooks/useTextareaHeightLock";
+import useTextareaHeightLock, {
+  useTextareaGripStyle,
+} from "../../hooks/useTextareaHeightLock";
 
 /**
  * Determine whether selection translation results can render incrementally.
@@ -170,8 +172,12 @@ export default function TranCont({
   const [error, setError] = useState("");
   const [attemptRevision, setAttemptRevision] = useState(requestRevision);
   const requestPendingRef = useRef(false);
+  const gripStyle = useTextareaGripStyle();
+  const isNativeGrip = gripStyle === "firefox-native";
   const resultHeightLock = useTextareaHeightLock(
-    isPlayground ? "trancont-result-playground" : "trancont-result"
+    isPlayground ? "trancont-result-playground" : "trancont-result",
+    undefined,
+    isNativeGrip
   );
 
   // Resolve the translation API settings for this instance's slug.
@@ -367,7 +373,7 @@ export default function TranCont({
         inputProps={{
           className: "kt-resizable-textarea",
           style: {
-            resize: "none",
+            resize: isNativeGrip ? "vertical" : "none",
             ...(isPlayground
               ? {}
               : { boxSizing: "border-box", paddingInlineEnd: 16 }),
@@ -444,14 +450,16 @@ export default function TranCont({
                 title={i18n("read_aloud")}
               />
             </Stack>
-            {(trText.trim() || resultHeightLock.lockedHeight != null) && (
-              <TextareaResizeGrip
-                target={resultHeightLock.textareaRef}
-                onResize={resultHeightLock.applyHeight}
-                value={resultHeightLock.lockedHeight}
-                label={i18n("field_resize_height")}
-              />
-            )}
+            {!isNativeGrip &&
+              (trText.trim() || resultHeightLock.lockedHeight != null) && (
+                <TextareaResizeGrip
+                  target={resultHeightLock.textareaRef}
+                  onResize={resultHeightLock.applyHeight}
+                  value={resultHeightLock.lockedHeight}
+                  label={i18n("field_resize_height")}
+                  variant={gripStyle}
+                />
+              )}
             </>
           ),
         }}

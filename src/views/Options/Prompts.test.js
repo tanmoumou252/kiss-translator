@@ -26,6 +26,27 @@ jest.mock("../../hooks/Confirm", () => ({
   useConfirm: () => mockConfirm,
 }));
 
+// 手柄样式：部分 mock（requireActual 保留真实默认导出 useTextareaHeightLock），
+// 只替换 useTextareaGripStyle 以驱动 5 端 firefox-native / upstream-chrome 行为。
+// 同时 mock ./Setting：requireActual 加载真实 hook 会静态 import ./Setting，进而
+// 拉入 Storage→apis→query-string(ESM) 整条持久化链，本测试未转译 query-string 会
+// 解析失败。Setting 用最小 mock 斩断该链；真实默认导出不调用 useSetting，零影响。
+jest.mock("../../hooks/Setting", () => ({
+  useSetting: () => ({ setting: {} }),
+}));
+const mockUseTextareaGripStyle = jest.fn(() => "concentric-smooth");
+jest.mock("../../hooks/useTextareaHeightLock", () => {
+  const actual = jest.requireActual("../../hooks/useTextareaHeightLock");
+  // 必须显式回补 __esModule：requireActual 的 __esModule 为非枚举属性，
+  // 纯 {...actual} 展开会丢失它，导致消费方对 hook 的默认导入被 Babel 的
+  // _interopRequireDefault 重新包一层而拿不到函数本体。
+  return {
+    ...actual,
+    __esModule: true,
+    useTextareaGripStyle: () => mockUseTextareaGripStyle(),
+  };
+});
+
 function createPrompt(category, overrides = {}) {
   return {
     slug: `prompt_${category.replaceAll(" ", "_")}`,
@@ -335,6 +356,52 @@ describe("Prompts", () => {
     expect(promptListValue.addPrompt).toHaveBeenCalledWith(
       presetPrompt,
       "Preset prompt"
+    );
+    unmount();
+  });
+});
+
+describe("Prompts textarea grip style", () => {
+  afterEach(() => {
+    mockUseTextareaGripStyle.mockReset();
+    mockUseTextareaGripStyle.mockReturnValue("concentric-smooth");
+    mockUsePromptList.mockReset();
+    mockConfirm.mockReset();
+    document.body.innerHTML = "";
+  });
+
+  test("firefox-native drops the grip, unlocks native resize and keeps the class", () => {
+    mockUseTextareaGripStyle.mockReturnValue("firefox-native");
+    const { container, unmount } = renderPrompts(PROMPT_CATEGORY_DICTIONARY);
+    const textareas = container.querySelectorAll(
+      'textarea.kt-resizable-textarea:not([aria-hidden="true"])'
+    );
+    expect(textareas.length).toBeGreaterThan(0);
+    textareas.forEach((textarea) => {
+      const fieldRoot = textarea.closest(".MuiInputBase-root");
+      // 内容门控已满足（systemPrompt 非空），原生模式仍不渲染 separator。
+      expect(fieldRoot.querySelector('[role="separator"]')).toBeNull();
+      expect(getComputedStyle(textarea).resize).toBe("vertical");
+      // kt-resizable-textarea 恒定附加（现状一致）。
+      expect(textarea.classList.contains("kt-resizable-textarea")).toBe(true);
+      // 高度锁停用契约：不存在 .kt-height-locked 祖先。
+      expect(textarea.closest(".kt-height-locked")).toBeNull();
+    });
+    unmount();
+  });
+
+  test("upstream-chrome renders the grip with the slashed variant and locks resize", () => {
+    mockUseTextareaGripStyle.mockReturnValue("upstream-chrome");
+    const { container, unmount } = renderPrompts(PROMPT_CATEGORY_DICTIONARY);
+    const textarea = container.querySelector(
+      'textarea.kt-resizable-textarea:not([aria-hidden="true"])'
+    );
+    const fieldRoot = textarea.closest(".MuiInputBase-root");
+    const grip = fieldRoot.querySelector('[role="separator"]');
+    expect(grip).not.toBeNull();
+    expect(getComputedStyle(textarea).resize).toBe("none");
+    expect(grip.querySelector("svg path").getAttribute("d")).toBe(
+      "M15 3L3 15h2.5L15 5.5V3zM15 8L8 15h2.5l4.5-4.5V8zM15 13l-2 2h2v-2z"
     );
     unmount();
   });

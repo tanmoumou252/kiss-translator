@@ -1,5 +1,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import createCache from "@emotion/cache";
+import { CacheProvider } from "@emotion/react";
 import fs from "fs";
 import path from "path";
 import SubtitleSegmentationPlayground from "./SubtitleSegmentationPlayground";
@@ -30,6 +32,23 @@ jest.mock("../../hooks/I18n", () => ({
 jest.mock("../../libs/utils", () => {
   const actual = jest.requireActual("../../libs/utils");
   return { ...actual, downloadBlobFile: jest.fn() };
+});
+
+// 手柄样式：部分 mock（requireActual 保留真实默认导出），只替换
+// useTextareaGripStyle 驱动 firefox-native / upstream-chrome 行为。
+// 同时最小 mock ./Setting：斩断 requireActual(真实 hook) → ./Setting → Storage →
+// apis → query-string(ESM) 的未转译链；真实默认导出不调用 useSetting，零影响。
+jest.mock("../../hooks/Setting", () => ({
+  useSetting: () => ({ setting: {} }),
+}));
+const mockUseTextareaGripStyle = jest.fn(() => "concentric-smooth");
+jest.mock("../../hooks/useTextareaHeightLock", () => {
+  const actual = jest.requireActual("../../hooks/useTextareaHeightLock");
+  return {
+    ...actual,
+    __esModule: true,
+    useTextareaGripStyle: () => mockUseTextareaGripStyle(),
+  };
 });
 
 /** 等待 React effect 和异步事件处理器完成一次状态提交。 */
@@ -441,5 +460,111 @@ describe("SubtitleSegmentationPlayground", () => {
     expect(container.textContent).not.toContain("当前结果已过期");
 
     act(() => root.unmount());
+  });
+});
+
+describe("SubtitleSegmentationPlayground textarea grip style", () => {
+  const source = JSON.stringify({
+    lang: "en",
+    events: [{ tStartMs: 0, dDurationMs: 1000, segs: [{ utf8: "Hello." }] }],
+  });
+
+  function renderGripPlayground(key) {
+    const cache = createCache({ key, speedy: false });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <CacheProvider value={cache}>
+          <SubtitleSegmentationPlayground
+            subtitleSetting={{
+              segSlug: "-",
+              useAlgorithmBreaker: "rule",
+              longSentenceThreshold: 120,
+              toLang: "zh-CN",
+            }}
+            transApis={[]}
+            prompts={[]}
+          />
+        </CacheProvider>
+      );
+    });
+    const emotionCss = () =>
+      [...document.head.querySelectorAll(`style[data-emotion^="${key}"]`)]
+        .map((style) => style.textContent)
+        .join("\n");
+    return { container, root, cache, emotionCss };
+  }
+
+  async function uploadSource(container) {
+    const input = container.querySelector('input[type="file"]');
+    const file = new File([source], "sample.json", { type: "application/json" });
+    Object.defineProperty(file, "text", { value: async () => source });
+    Object.defineProperty(input, "files", { value: [file] });
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ version: 1, samples: [] }),
+    });
+  });
+
+  afterEach(() => {
+    delete global.fetch;
+    mockUseTextareaGripStyle.mockReset();
+    mockUseTextareaGripStyle.mockReturnValue("concentric-smooth");
+  });
+
+  test("firefox-native drops the grip and clears the resize none !important branch", async () => {
+    mockUseTextareaGripStyle.mockReturnValue("firefox-native");
+    const { container, root, cache, emotionCss } = renderGripPlayground(
+      "subtitle-grip-native"
+    );
+    await flushEffects();
+    await uploadSource(container);
+
+    const sourceArea = container.querySelector(
+      'textarea[aria-label="原始字幕 JSON"]'
+    );
+    // 内容门控已满足（上传后源框非空），原生模式仍不渲染 separator。
+    expect(sourceArea.value).not.toBe("");
+    expect(
+      sourceArea.closest(".MuiInputBase-root").querySelector('[role="separator"]')
+    ).toBeNull();
+    // RESIZABLE_TEXT_FIELD_SX 条件化：firefox-native 下不再输出 none !important。
+    expect(emotionCss()).not.toContain("resize:none!important");
+    // 恒定附加契约：类仍在场。
+    expect(sourceArea.classList.contains("kt-resizable-textarea")).toBe(true);
+    await act(async () => root.unmount());
+    cache.sheet.flush();
+  });
+
+  test("non-native keeps the resize none !important branch and renders the grip", async () => {
+    mockUseTextareaGripStyle.mockReturnValue("concentric-smooth");
+    const { container, root, cache, emotionCss } = renderGripPlayground(
+      "subtitle-grip-default"
+    );
+    await flushEffects();
+    await uploadSource(container);
+
+    const sourceArea = container.querySelector(
+      'textarea[aria-label="原始字幕 JSON"]'
+    );
+    const grip = sourceArea
+      .closest(".MuiInputBase-root")
+      .querySelector('[role="separator"]');
+    expect(grip).not.toBeNull();
+    // 非原生分支：RESIZABLE_TEXT_FIELD_SX 仍压制 resize。
+    expect(emotionCss()).toContain("resize:none!important");
+    await act(async () => root.unmount());
+    cache.sheet.flush();
   });
 });

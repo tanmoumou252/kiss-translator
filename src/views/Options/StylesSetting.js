@@ -21,11 +21,15 @@ import {
 import { css } from "@emotion/css";
 import { getRandomQuote } from "../../config/quotes";
 import { useSetting } from "../../hooks/Setting";
+import InputBase from "@mui/material/InputBase";
+import TextareaResizeGrip from "../../components/TextareaResizeGrip";
+import { useTextareaGripStyle } from "../../hooks/useTextareaHeightLock";
 import {
   SettingsCard,
   SettingsRow,
   SettingsSection,
   SettingsSegmented,
+  SettingsSelect,
 } from "./SettingsCard";
 
 /**
@@ -225,6 +229,48 @@ export function StyleAccordion({ customStyle, deleteStyle, updateStyle }) {
 }
 
 /**
+ * 手柄实时预览：几何保真复用真实 InputBase 结构 + 真实 TextareaResizeGrip
+ * 组件实例（同一套 sx/测量基准 .MuiInputBase-root），仅展示不接业务逻辑。
+ * onResize 只把新高度写回预览框自身高度（本地 state）；firefox-native 选中
+ * 时放开原生纵向 resize、不渲染 separator，与真实接入场景行为一致。
+ *
+ * @param {Object} props
+ * @param {string} props.variant 当前选中的手柄样式 key。
+ */
+function GripPreview({ variant }) {
+  const i18n = useI18n();
+  const previewRef = useRef(null);
+  const [height, setHeight] = useState(96);
+  const isNative = variant === "firefox-native";
+  return (
+    <Box sx={{ width: "100%", maxWidth: 360 }}>
+      <InputBase
+        multiline
+        fullWidth
+        inputRef={previewRef}
+        value=""
+        onChange={() => {}}
+        inputProps={{
+          className: "kt-resizable-textarea",
+          style: { height, resize: isNative ? "vertical" : "none" },
+        }}
+        endAdornment={
+          !isNative ? (
+            <TextareaResizeGrip
+              target={previewRef}
+              onResize={(nextHeight) => setHeight(nextHeight)}
+              value={height}
+              label={i18n("field_resize_height")}
+              variant={variant}
+            />
+          ) : undefined
+        }
+      />
+    </Box>
+  );
+}
+
+/**
  * 译文展现样式设置主页面组件 (StylesSetting)
  */
 export default function StylesSetting() {
@@ -249,6 +295,7 @@ export default function StylesSetting() {
   };
 
   const darkMode = setting.darkMode || "auto";
+  const gripStyle = useTextareaGripStyle();
 
   return (
     <Box>
@@ -265,6 +312,87 @@ export default function StylesSetting() {
                 { value: "auto", label: i18n("settings_theme_system") },
               ]}
             />
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
+
+      <SettingsSection title={i18n("settings_textarea_grip_style")}>
+        <SettingsCard>
+          <SettingsRow
+            label={i18n("settings_textarea_grip_style")}
+            description={i18n("settings_textarea_grip_style_desc")}
+          >
+            <SettingsSelect
+              value={gripStyle}
+              label={i18n("settings_textarea_grip_style")}
+              onChange={(value) => updateSetting({ textareaGripStyle: value })}
+              options={[
+                {
+                  value: "concentric-smooth",
+                  label: i18n("grip_style_concentric_smooth"),
+                },
+                {
+                  value: "concentric-triple",
+                  label: i18n("grip_style_concentric_triple"),
+                },
+                { value: "corner-pill", label: i18n("grip_style_corner_pill") },
+                {
+                  value: "dotted-concentric",
+                  label: i18n("grip_style_dotted_concentric"),
+                },
+                {
+                  value: "dotted-single",
+                  label: i18n("grip_style_dotted_single"),
+                },
+                {
+                  value: "triple-chevrons",
+                  label: i18n("grip_style_triple_chevrons"),
+                },
+                {
+                  value: "diagonal-arrow",
+                  label: i18n("grip_style_diagonal_arrow"),
+                },
+                {
+                  value: "dual-pills",
+                  label: i18n("grip_style_dual_pills"),
+                },
+                {
+                  value: "expanding-beads",
+                  label: i18n("grip_style_expanding_beads"),
+                },
+                {
+                  value: "chevrons-star",
+                  label: i18n("grip_style_chevrons_star"),
+                },
+                {
+                  value: "symmetric-division",
+                  label: i18n("grip_style_symmetric_division"),
+                },
+                {
+                  value: "percent-style",
+                  label: i18n("grip_style_percent_style"),
+                },
+                {
+                  value: "orbit-satellite",
+                  label: i18n("grip_style_orbit_satellite"),
+                },
+                { value: "hidden", label: i18n("grip_style_hidden") },
+                {
+                  value: "upstream-chrome",
+                  label: i18n("grip_style_upstream_chrome"),
+                },
+                {
+                  value: "firefox-native",
+                  label: i18n("grip_style_firefox_native"),
+                },
+              ]}
+            />
+          </SettingsRow>
+          <SettingsRow
+            label={i18n("settings_textarea_grip_style_preview")}
+            stacked
+          >
+            <GripPreview variant={gripStyle} />
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
