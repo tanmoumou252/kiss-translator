@@ -180,6 +180,14 @@ export default function TranCont({
     isNativeGrip
   );
 
+  // 内容清空 → 彻底解锁：清除会话高度记忆并还原 root，手柄随内容门控
+  // 消失；门控表达式的锁定分支保留（服务于「有内容且已锁」的存续态）。
+  useEffect(() => {
+    if (!trText.trim()) {
+      resultHeightLock.releaseHeight();
+    }
+  }, [trText, resultHeightLock.releaseHeight]);
+
   // Resolve the translation API settings for this instance's slug.
   const apiSetting = useMemo(
     () => transApis.find((api) => api.apiSlug === apiSlug),

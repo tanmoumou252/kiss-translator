@@ -3,7 +3,7 @@ import { CacheProvider } from "@emotion/react";
 import { act, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import Box from "@mui/material/Box";
-import TextareaResizeGrip from "./TextareaResizeGrip";
+import TextareaResizeGrip, { GripGlyph } from "./TextareaResizeGrip";
 
 const ORIGINAL_INNER_HEIGHT = window.innerHeight;
 
@@ -250,6 +250,65 @@ describe("TextareaResizeGrip", () => {
     const svg = grip.querySelector("svg");
     expect(svg).not.toBeNull();
     expect(svg.querySelectorAll("path, line, circle").length).toBe(0);
+    await act(async () => root.unmount());
+  });
+});
+
+describe("GripGlyph", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  async function renderGlyph(ui) {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => root.render(ui));
+    return { container, root };
+  }
+
+  test("falls back to the concentric arcs for unknown keys", async () => {
+    const { container, root } = await renderGlyph(
+      <GripGlyph variant="nonexistent-key" />
+    );
+    const svg = container.querySelector("svg");
+    expect(svg.getAttribute("viewBox")).toBe("0 0 18 18");
+    expect(svg.getAttribute("aria-hidden")).toBe("true");
+    expect(svg.getAttribute("width")).toBe("18");
+    const paths = svg.querySelectorAll("path");
+    expect(paths).toHaveLength(2);
+    expect(paths[0].getAttribute("d")).toBe(
+      "M15 5V9C15 12.3137 12.3137 15 9 15H5"
+    );
+    await act(async () => root.unmount());
+  });
+
+  test("renders an empty placeholder svg for the hidden variant", async () => {
+    const { container, root } = await renderGlyph(
+      <GripGlyph variant="hidden" />
+    );
+    const svg = container.querySelector("svg");
+    expect(svg).not.toBeNull();
+    expect(svg.querySelectorAll("path, line, circle").length).toBe(0);
+    await act(async () => root.unmount());
+  });
+
+  test("renders nothing for the firefox-native variant", async () => {
+    const { container, root } = await renderGlyph(
+      <GripGlyph variant="firefox-native" />
+    );
+    expect(container.querySelector("svg")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  test("supports a custom rendered size while keeping the 18x18 viewBox", async () => {
+    const { container, root } = await renderGlyph(
+      <GripGlyph variant="concentric-smooth" size={14} />
+    );
+    const svg = container.querySelector("svg");
+    expect(svg.getAttribute("width")).toBe("14");
+    expect(svg.getAttribute("height")).toBe("14");
+    expect(svg.getAttribute("viewBox")).toBe("0 0 18 18");
     await act(async () => root.unmount());
   });
 });

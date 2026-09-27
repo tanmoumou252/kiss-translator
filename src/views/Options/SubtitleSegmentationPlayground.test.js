@@ -8,6 +8,7 @@ import SubtitleSegmentationPlayground from "./SubtitleSegmentationPlayground";
 import { handleSubtitle } from "../../apis/trans";
 import { I18N, UI_LANGS } from "../../config/i18n";
 import { downloadBlobFile } from "../../libs/utils";
+import { __resetSessionHeightMapForTests } from "../../hooks/useTextareaHeightLock";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const mockConfirm = jest.fn(() => Promise.resolve(true));
@@ -294,6 +295,58 @@ describe("SubtitleSegmentationPlayground", () => {
       expect.stringContaining("WEBVTT"),
       expect.stringMatching(/^sample-rule-.*\.vtt$/)
     );
+
+    act(() => root.unmount());
+  });
+
+  test("clearing the result on source language change releases the locked height", async () => {
+    __resetSessionHeightMapForTests();
+    const { container, root } = renderPlayground();
+    await flushEffects();
+
+    const input = container.querySelector('input[type="file"]');
+    const file = new File([source], "sample.json", {
+      type: "application/json",
+    });
+    Object.defineProperty(file, "text", { value: async () => source });
+    Object.defineProperty(input, "files", { value: [file] });
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await selectSourceLanguage(container, "en");
+    const runButton = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent.includes("运行测试")
+    );
+    await act(async () => {
+      runButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const sourceRoot = container
+      .querySelector('textarea[aria-label="原始字幕 JSON"]')
+      .closest(".MuiInputBase-root");
+    const resultRoot = container
+      .querySelector('textarea[aria-label="断句结果"]')
+      .closest(".MuiInputBase-root");
+    for (const gripRoot of [sourceRoot, resultRoot]) {
+      const grip = gripRoot.querySelector('[role="separator"]');
+      expect(grip).not.toBeNull();
+      act(() => {
+        grip.dispatchEvent(
+          new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" })
+        );
+      });
+      expect(gripRoot.classList).toContain("kt-height-locked");
+    }
+
+    // 切换源语言 → 旧结果清空（setResult(null)）→ 结果框彻底解锁；
+    // 源框内容未变，其锁定不受影响（对照断言）。
+    await selectSourceLanguage(container, "zh-CN");
+    expect(resultRoot.querySelector('[role="separator"]')).toBeNull();
+    expect(resultRoot.classList).not.toContain("kt-height-locked");
+    expect(resultRoot.style.height).toBe("");
+    expect(sourceRoot.classList).toContain("kt-height-locked");
 
     act(() => root.unmount());
   });

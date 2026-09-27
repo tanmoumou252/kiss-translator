@@ -199,6 +199,15 @@ export default function SubtitleSegmentationPlayground({
     isNativeGrip
   );
 
+  // 内容清空 → 彻底解锁：清除会话高度记忆并还原 root，手柄随内容门控
+  // 消失；门控表达式的锁定分支保留（服务于「有内容且已锁」的存续态）。
+  // resultText 在下方派生声明，其解锁 effect 紧随声明之后（规避 TDZ）。
+  useEffect(() => {
+    if (!(sourceText || "").trim()) {
+      sourceHeightLock.releaseHeight();
+    }
+  }, [sourceText, sourceHeightLock.releaseHeight]);
+
   const segApi = useMemo(
     () =>
       subtitleSetting?.segSlug && subtitleSetting.segSlug !== "-"
@@ -526,6 +535,13 @@ export default function SubtitleSegmentationPlayground({
       ? buildBilingualVtt(result)
       : JSON.stringify(result, null, 2)
     : "";
+
+  // 结果内容清空（切语言/换样本等）→ 彻底解锁结果框高度锁。
+  useEffect(() => {
+    if (!(resultText || "").trim()) {
+      resultHeightLock.releaseHeight();
+    }
+  }, [resultText, resultHeightLock.releaseHeight]);
 
   const downloadResult = () => {
     if (!resultText) return;

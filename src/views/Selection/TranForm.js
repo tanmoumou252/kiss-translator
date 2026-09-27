@@ -187,6 +187,14 @@ export default function TranForm({
     undefined,
     isNativeGrip
   );
+
+  // 内容清空 → 彻底解锁：清除会话高度记忆并还原 root，手柄随内容门控
+  // 消失；门控表达式的锁定分支保留（服务于「有内容且已锁」的存续态）。
+  useEffect(() => {
+    if (!editText.trim()) {
+      sourceHeightLock.releaseHeight();
+    }
+  }, [editText, sourceHeightLock.releaseHeight]);
   const setInputRef = useCallback((input) => {
     inputRef.current = input;
     sourceHeightLock.textareaRef.current = input;

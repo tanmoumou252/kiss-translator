@@ -607,6 +607,21 @@ describe("TranForm Playground presentation", () => {
         });
         expect(fieldRoot.classList).toContain("kt-height-locked");
         expect(fieldRoot.style.height).toBe("40px");
+        // 锁定后清空内容 → 彻底解锁：手柄消失、root 还原；回填 → 手柄
+        // 重新在场且高度从默认重新开始（会话记忆已被清除）。
+        act(() => {
+          setTextareaValue.call(textarea, "");
+          textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        expect(fieldRoot.querySelector('[role="separator"]')).toBeNull();
+        expect(fieldRoot.classList).not.toContain("kt-height-locked");
+        expect(fieldRoot.style.height).toBe("");
+        act(() => {
+          setTextareaValue.call(textarea, "before");
+          textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        expect(fieldRoot.querySelector('[role="separator"]')).not.toBeNull();
+        expect(fieldRoot.classList).not.toContain("kt-height-locked");
 
         for (const [index, draft] of ["  after  ", "  again  "].entries()) {
           // Use native focus: a still-focused input cannot emit another focus event.

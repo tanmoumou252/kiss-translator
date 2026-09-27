@@ -4393,4 +4393,53 @@ describe("TerminologyPlayground textarea grip style", () => {
     );
     act(() => root.unmount());
   });
+
+  test("clearing either terms draft releases the height lock completely", async () => {
+    __resetSessionHeightMapForTests();
+    const { container, root, setAiTermsDraft } = renderPlayground({
+      rule: null,
+    });
+    await flushEffects();
+    await enterTerms(container, "zorp,xyz", { waitDebounce: false });
+
+    const textarea = container.querySelector(
+      '[data-testid="terminology-terms-input"] textarea'
+    );
+    const fieldRoot = textarea.closest(".MuiInputBase-root");
+    const grip = fieldRoot.querySelector('[role="separator"]');
+    expect(grip).not.toBeNull();
+    act(() => {
+      grip.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" })
+      );
+    });
+    expect(fieldRoot.classList).toContain("kt-height-locked");
+
+    // 清空本地术语草稿 → 彻底解锁：手柄消失、root 还原（已编辑标记使
+    // 规则自动回填 effect 不再覆盖空草稿）。
+    await enterTerms(container, "", { waitDebounce: false });
+    expect(fieldRoot.querySelector('[role="separator"]')).toBeNull();
+    expect(fieldRoot.classList).not.toContain("kt-height-locked");
+    expect(fieldRoot.style.height).toBe("");
+
+    // AI 术语框同路径：注入 → 锁定 → 清空 → 解锁。
+    act(() => setAiTermsDraft("quzzle,缓存节点"));
+    const aiRoot = container
+      .querySelector('[data-testid="terminology-ai-terms-input"] textarea')
+      .closest(".MuiInputBase-root");
+    const aiGrip = aiRoot.querySelector('[role="separator"]');
+    expect(aiGrip).not.toBeNull();
+    act(() => {
+      aiGrip.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" })
+      );
+    });
+    expect(aiRoot.classList).toContain("kt-height-locked");
+    act(() => setAiTermsDraft(""));
+    expect(aiRoot.querySelector('[role="separator"]')).toBeNull();
+    expect(aiRoot.classList).not.toContain("kt-height-locked");
+    expect(aiRoot.style.height).toBe("");
+
+    act(() => root.unmount());
+  });
 });

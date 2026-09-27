@@ -21,8 +21,7 @@ import {
 import { css } from "@emotion/css";
 import { getRandomQuote } from "../../config/quotes";
 import { useSetting } from "../../hooks/Setting";
-import InputBase from "@mui/material/InputBase";
-import TextareaResizeGrip from "../../components/TextareaResizeGrip";
+import { GripGlyph } from "../../components/TextareaResizeGrip";
 import { useTextareaGripStyle } from "../../hooks/useTextareaHeightLock";
 import {
   SettingsCard,
@@ -229,43 +228,22 @@ export function StyleAccordion({ customStyle, deleteStyle, updateStyle }) {
 }
 
 /**
- * 手柄实时预览：几何保真复用真实 InputBase 结构 + 真实 TextareaResizeGrip
- * 组件实例（同一套 sx/测量基准 .MuiInputBase-root），仅展示不接业务逻辑。
- * onResize 只把新高度写回预览框自身高度（本地 state）；firefox-native 选中
- * 时放开原生纵向 resize、不渲染 separator，与真实接入场景行为一致。
+ * 下拉选项图标 + 文案的内联排布（参照 Apis.js MenuItem 内联图标先例；
+ * SettingsSelect 的 label 天然接受 React 节点，SettingsSelect 自身零改造）。
+ * 图标由 GripGlyph 纯展示渲染；firefox-native 项不套用本 helper（无图标）。
  *
- * @param {Object} props
- * @param {string} props.variant 当前选中的手柄样式 key。
+ * @param {string} variant 手柄样式 key。
+ * @param {string} text 选项文案。
+ * @returns {JSX.Element}
  */
-function GripPreview({ variant }) {
-  const i18n = useI18n();
-  const previewRef = useRef(null);
-  const [height, setHeight] = useState(96);
-  const isNative = variant === "firefox-native";
+function gripOptionLabel(variant, text) {
   return (
-    <Box sx={{ width: "100%", maxWidth: 360 }}>
-      <InputBase
-        multiline
-        fullWidth
-        inputRef={previewRef}
-        value=""
-        onChange={() => {}}
-        inputProps={{
-          className: "kt-resizable-textarea",
-          style: { height, resize: isNative ? "vertical" : "none" },
-        }}
-        endAdornment={
-          !isNative ? (
-            <TextareaResizeGrip
-              target={previewRef}
-              onResize={(nextHeight) => setHeight(nextHeight)}
-              value={height}
-              label={i18n("field_resize_height")}
-              variant={variant}
-            />
-          ) : undefined
-        }
-      />
+    <Box
+      component="span"
+      sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}
+    >
+      <GripGlyph variant={variant} />
+      {text}
     </Box>
   );
 }
@@ -329,57 +307,105 @@ export default function StylesSetting() {
               options={[
                 {
                   value: "concentric-smooth",
-                  label: i18n("grip_style_concentric_smooth"),
+                  label: gripOptionLabel(
+                    "concentric-smooth",
+                    i18n("grip_style_concentric_smooth")
+                  ),
                 },
                 {
                   value: "concentric-triple",
-                  label: i18n("grip_style_concentric_triple"),
+                  label: gripOptionLabel(
+                    "concentric-triple",
+                    i18n("grip_style_concentric_triple")
+                  ),
                 },
-                { value: "corner-pill", label: i18n("grip_style_corner_pill") },
+                {
+                  value: "corner-pill",
+                  label: gripOptionLabel(
+                    "corner-pill",
+                    i18n("grip_style_corner_pill")
+                  ),
+                },
                 {
                   value: "dotted-concentric",
-                  label: i18n("grip_style_dotted_concentric"),
+                  label: gripOptionLabel(
+                    "dotted-concentric",
+                    i18n("grip_style_dotted_concentric")
+                  ),
                 },
                 {
                   value: "dotted-single",
-                  label: i18n("grip_style_dotted_single"),
+                  label: gripOptionLabel(
+                    "dotted-single",
+                    i18n("grip_style_dotted_single")
+                  ),
                 },
                 {
                   value: "triple-chevrons",
-                  label: i18n("grip_style_triple_chevrons"),
+                  label: gripOptionLabel(
+                    "triple-chevrons",
+                    i18n("grip_style_triple_chevrons")
+                  ),
                 },
                 {
                   value: "diagonal-arrow",
-                  label: i18n("grip_style_diagonal_arrow"),
+                  label: gripOptionLabel(
+                    "diagonal-arrow",
+                    i18n("grip_style_diagonal_arrow")
+                  ),
                 },
                 {
                   value: "dual-pills",
-                  label: i18n("grip_style_dual_pills"),
+                  label: gripOptionLabel(
+                    "dual-pills",
+                    i18n("grip_style_dual_pills")
+                  ),
                 },
                 {
                   value: "expanding-beads",
-                  label: i18n("grip_style_expanding_beads"),
+                  label: gripOptionLabel(
+                    "expanding-beads",
+                    i18n("grip_style_expanding_beads")
+                  ),
                 },
                 {
                   value: "chevrons-star",
-                  label: i18n("grip_style_chevrons_star"),
+                  label: gripOptionLabel(
+                    "chevrons-star",
+                    i18n("grip_style_chevrons_star")
+                  ),
                 },
                 {
                   value: "symmetric-division",
-                  label: i18n("grip_style_symmetric_division"),
+                  label: gripOptionLabel(
+                    "symmetric-division",
+                    i18n("grip_style_symmetric_division")
+                  ),
                 },
                 {
                   value: "percent-style",
-                  label: i18n("grip_style_percent_style"),
+                  label: gripOptionLabel(
+                    "percent-style",
+                    i18n("grip_style_percent_style")
+                  ),
                 },
                 {
                   value: "orbit-satellite",
-                  label: i18n("grip_style_orbit_satellite"),
+                  label: gripOptionLabel(
+                    "orbit-satellite",
+                    i18n("grip_style_orbit_satellite")
+                  ),
                 },
-                { value: "hidden", label: i18n("grip_style_hidden") },
+                {
+                  value: "hidden",
+                  label: gripOptionLabel("hidden", i18n("grip_style_hidden")),
+                },
                 {
                   value: "upstream-chrome",
-                  label: i18n("grip_style_upstream_chrome"),
+                  label: gripOptionLabel(
+                    "upstream-chrome",
+                    i18n("grip_style_upstream_chrome")
+                  ),
                 },
                 {
                   value: "firefox-native",
@@ -387,12 +413,6 @@ export default function StylesSetting() {
                 },
               ]}
             />
-          </SettingsRow>
-          <SettingsRow
-            label={i18n("settings_textarea_grip_style_preview")}
-            stacked
-          >
-            <GripPreview variant={gripStyle} />
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>

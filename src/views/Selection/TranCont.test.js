@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import TranCont from "./TranCont";
 import { apiTranslate } from "../../apis";
+import { __resetSessionHeightMapForTests } from "../../hooks/useTextareaHeightLock";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -217,6 +218,45 @@ describe("TranCont", () => {
     });
     expect(resultRoot.classList).toContain("kt-height-locked");
     expect(resultRoot.style.height).toBe("40px");
+    act(() => root.unmount());
+  });
+
+  test("clearing the result releases the locked height completely", async () => {
+    __resetSessionHeightMapForTests();
+    apiTranslate.mockResolvedValueOnce({ trText: "译文" });
+    const { container, root } = renderTranCont();
+    await flushEffects();
+
+    const resultTextarea = container.querySelector(
+      '.kt-translation-result textarea:not([aria-hidden="true"])'
+    );
+    const resultRoot = resultTextarea.closest(".MuiInputBase-root");
+    const grip = resultRoot.querySelector('[role="separator"]');
+    expect(grip).not.toBeNull();
+    act(() => {
+      grip.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" })
+      );
+    });
+    expect(resultRoot.classList).toContain("kt-height-locked");
+
+    // 清空结果（text="" 重渲染触发 setTrText("")）→ 彻底解锁：手柄消失、
+    // root 类与内联高度还原。
+    act(() => {
+      root.render(
+        <TranCont
+          text=""
+          fromLang="auto"
+          toLang="zh-CN"
+          apiSlug="openai"
+          transApis={[baseApiSetting]}
+        />
+      );
+    });
+    await flushEffects();
+    expect(resultRoot.querySelector('[role="separator"]')).toBeNull();
+    expect(resultRoot.classList).not.toContain("kt-height-locked");
+    expect(resultRoot.style.height).toBe("");
     act(() => root.unmount());
   });
 

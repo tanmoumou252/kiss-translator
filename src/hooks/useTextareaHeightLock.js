@@ -37,7 +37,10 @@ function applyLockToRoot(rootEl, height) {
  * 锁定高度与锁定标记（kt-height-locked 类）写在 InputBase root 上，由
  * m3.js 的锁定态 CSS 压制 autosize 对 textarea 的行数写高，与渲染提交
  * 顺序无关、零竞态。锁定来源只有确定的拖拽/键盘会话，无需任何推断式
- * 判别机制；不提供解锁 API（当前无解锁 UI）。
+ * 判别机制；releaseHeight 提供显式解锁（内容清空等场景调用：清除会话
+ * 记忆并还原 root，锁定语义仅存在于锁定态存续期间）。root 的 DOM 清理
+ * 幂等执行、不受停用（firefox-native）闸影响，以覆盖停用翻转前已写入
+ * 的锁定残留。
  *
  * @param {string} lockKey 会话内记忆键（同一 key 跨重挂载共享高度）。
  * @param {{current: HTMLTextAreaElement|null}} [textareaRef] 调用方已有的
@@ -48,6 +51,7 @@ function applyLockToRoot(rootEl, height) {
  *   textareaRef: {current: HTMLTextAreaElement|null},
  *   lockedHeight: number|null,
  *   applyHeight: (height: number) => void,
+ *   releaseHeight: () => void,
  * }}
  */
 export default function useTextareaHeightLock(
@@ -83,5 +87,22 @@ export default function useTextareaHeightLock(
     [disabled, lockKey, targetRef]
   );
 
-  return { textareaRef: targetRef, lockedHeight, applyHeight };
+  // 解锁：root 还原为 applyLockToRoot 的逐字对偶（移除 kt-height-locked
+  // 类、清空内联 height）。DOM 清理与状态清理分离：前者幂等执行、不受
+  // disabled（firefox-native）闸影响——停用翻转前写入的锁定残留必须可被
+  // 清除；后者仅在启用态执行（disabled 下 applyHeight 早退、锁定写入路
+  // 径全闭）。恢复启用后 releaseHeight 身份随 disabled 变化，清空 effect
+  // 重跑即完成状态清理。
+  const releaseHeight = useCallback(() => {
+    const rootEl = getRootEl(targetRef.current);
+    if (rootEl) {
+      rootEl.classList.remove("kt-height-locked");
+      rootEl.style.height = "";
+    }
+    if (disabled) return;
+    sessionHeightMap.delete(lockKey);
+    setLockedHeight(null);
+  }, [disabled, lockKey, targetRef]);
+
+  return { textareaRef: targetRef, lockedHeight, applyHeight, releaseHeight };
 }

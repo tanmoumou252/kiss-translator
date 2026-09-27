@@ -1669,6 +1669,19 @@ export default function TerminologyPlayground({
     undefined,
     isNativeGrip
   );
+
+  // 内容清空 → 彻底解锁：清除会话高度记忆并还原 root，手柄随内容门控
+  // 消失；门控表达式的锁定分支保留（服务于「有内容且已锁」的存续态）。
+  useEffect(() => {
+    if (!(termsDraft || "").trim()) {
+      termsHeightLock.releaseHeight();
+    }
+  }, [termsDraft, termsHeightLock.releaseHeight]);
+  useEffect(() => {
+    if (!(aiTermsDraft || "").trim()) {
+      aiTermsHeightLock.releaseHeight();
+    }
+  }, [aiTermsDraft, aiTermsHeightLock.releaseHeight]);
   // AI 术语例句轮换 seed（与本地术语区 termSeed 语义一致："" = 缺省确定性行为，递增轮换）。
   const [aiTermSeed, setAiTermSeed] = useState("");
 

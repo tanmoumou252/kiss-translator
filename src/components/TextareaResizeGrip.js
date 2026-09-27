@@ -269,6 +269,36 @@ const GRIP_SVGS = {
   },
 };
 
+/**
+ * 纯展示手柄图形：复用 GRIP_SVGS 注册表与 svg 壳形态（width/height/
+ * viewBox/fill/aria-hidden），供下拉选项等静态场景内嵌图标。无状态、
+ * 无交互、aria-hidden。未知 key 回落 "concentric-smooth"（与组件渲染
+ * 回落口径一致）；hidden 渲染空 svg 占位（与手柄 hidden 语义对齐）；
+ * firefox-native 返回 null（该项为浏览器原生行为，下拉项不带图标）。
+ * 仅导出本组件，不导出注册表原始数据。
+ *
+ * @param {Object} props
+ * @param {string} props.variant 手柄样式 key（见 GRIP_SVGS）。
+ * @param {number} [props.size] 渲染尺寸，缺省 18（viewBox 恒为 18×18）。
+ * @returns {JSX.Element|null}
+ */
+export function GripGlyph({ variant, size = 18 }) {
+  if (variant === "firefox-native") return null;
+  const grip = GRIP_SVGS[variant] ?? GRIP_SVGS["concentric-smooth"];
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 18 18"
+      fill={grip.fill}
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      {grip.content}
+    </svg>
+  );
+}
+
 // 视觉为两条同心圆弧的内联 SVG（18×18 viewBox，外弧半径 6px、内弧半径
 // 3px，层间恒定 3px 同心间距，stroke-width 1.8、round 端点）：弧线曲率
 // 与 InputBase root 的大圆角同心内收，贴合圆角轮廓且不溢出输入框显示

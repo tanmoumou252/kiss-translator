@@ -13,8 +13,8 @@ jest.mock("./Setting", () => ({
   useSetting: () => ({ setting: mockGripSetting }),
 }));
 
-function LockHost({ lockKey, minRows = 3, onChange }) {
-  const lock = useTextareaHeightLock(lockKey);
+function LockHost({ lockKey, minRows = 3, onChange, disabled }) {
+  const lock = useTextareaHeightLock(lockKey, undefined, disabled);
   onChange(lock);
   return (
     <div className="MuiInputBase-root">
@@ -158,5 +158,75 @@ describe("useTextareaHeightLock", () => {
     expect(getCaptured()).toBe("hidden");
     await act(async () => root.unmount());
     mockGripSetting.textareaGripStyle = undefined;
+  });
+
+  test("releaseHeight clears the session memory and restores the root", async () => {
+    let lock;
+    const first = await renderLock(
+      <LockHost lockKey="release-me" onChange={(api) => (lock = api)} />
+    );
+    await act(async () => lock.applyHeight(180));
+    expect(lock.lockedHeight).toBe(180);
+    expect(first.fieldRoot.style.height).toBe("180px");
+    expect(first.fieldRoot.classList).toContain("kt-height-locked");
+
+    await act(async () => lock.releaseHeight());
+    expect(lock.lockedHeight).toBeNull();
+    expect(first.fieldRoot.style.height).toBe("");
+    expect(first.fieldRoot.classList).not.toContain("kt-height-locked");
+
+    // 会话记忆同步清除：同 key 卸载重挂载不再恢复高度。
+    await act(async () => first.root.unmount());
+    let lock2;
+    const second = await renderLock(
+      <LockHost lockKey="release-me" onChange={(api) => (lock2 = api)} />
+    );
+    expect(lock2.lockedHeight).toBeNull();
+    expect(second.fieldRoot.style.height).toBe("");
+    expect(second.fieldRoot.classList).not.toContain("kt-height-locked");
+    await act(async () => second.root.unmount());
+  });
+
+  test("releaseHeight leaves a clean disabled lock untouched", async () => {
+    let lock;
+    const { root, fieldRoot } = await renderLock(
+      <LockHost
+        lockKey="disabled-release"
+        disabled
+        onChange={(api) => (lock = api)}
+      />
+    );
+    await act(async () => lock.applyHeight(120));
+    await act(async () => lock.releaseHeight());
+    expect(lock.lockedHeight).toBeNull();
+    expect(fieldRoot.style.height).toBe("");
+    expect(fieldRoot.classList).not.toContain("kt-height-locked");
+    await act(async () => root.unmount());
+  });
+
+  test("releaseHeight clears leftover root residue even while disabled", async () => {
+    let lock;
+    const { root, fieldRoot } = await renderLock(
+      <LockHost
+        lockKey="disabled-residue-release"
+        disabled
+        onChange={(api) => (lock = api)}
+      />
+    );
+    // 停用（firefox-native）翻转前写入的锁定残留：disabled 下 applyHeight
+    // 早退无法经其制造，手动注入 root 类与内联高度。
+    await act(async () => {
+      fieldRoot.classList.add("kt-height-locked");
+      fieldRoot.style.height = "180px";
+    });
+    expect(fieldRoot.style.height).toBe("180px");
+    expect(fieldRoot.classList).toContain("kt-height-locked");
+
+    await act(async () => lock.releaseHeight());
+    // DOM 清理不受 disabled 早退影响：类与内联高度被幂等移除（「彻底解
+    // 锁」在停用翻转场景同样成立）。
+    expect(fieldRoot.style.height).toBe("");
+    expect(fieldRoot.classList).not.toContain("kt-height-locked");
+    await act(async () => root.unmount());
   });
 });

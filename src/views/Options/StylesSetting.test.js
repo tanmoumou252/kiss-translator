@@ -345,31 +345,30 @@ describe("StylesSetting textarea grip section", () => {
     view.container.remove();
   });
 
-  test("previews the real grip component and follows the live variant", async () => {
+  test("embeds a grip glyph in every drawn option and none in firefox-native", async () => {
     const view = renderGripSection();
+    await openGripSelect(view.container);
+    const options = [...document.body.querySelectorAll('[role="option"]')];
+    expect(options).toHaveLength(16);
 
-    // 默认 concentric-smooth：预览复用真实组件（role=separator 在场 + 双弧），
-    // 且具备无障碍名称（与真实接入端同口径的 field_resize_height）。
-    let separator = view.container.querySelector('[role="separator"]');
-    expect(separator).not.toBeNull();
-    expect(separator.querySelectorAll("svg path")).toHaveLength(2);
-    expect(separator.getAttribute("aria-label")).toBe("field_resize_height");
-
-    // 切到 upstream-chrome：同一 separator 内 SVG 随 variant 变为单条斜杠。
-    mockSetting.textareaGripStyle = "upstream-chrome";
-    view.rerender();
-    separator = view.container.querySelector('[role="separator"]');
-    expect(separator).not.toBeNull();
-    expect(separator.querySelector("svg path").getAttribute("d")).toBe(
-      "M15 3L3 15h2.5L15 5.5V3zM15 8L8 15h2.5l4.5-4.5V8zM15 13l-2 2h2v-2z"
+    // 15 个自绘样式项内嵌纯展示 svg（18×18 viewBox、aria-hidden）；
+    // hidden 项的 svg 为空占位（无图形子元素）。
+    const drawn = options.filter(
+      (option) => option.getAttribute("data-value") !== "firefox-native"
     );
+    expect(drawn).toHaveLength(15);
+    drawn.forEach((option) => {
+      const svg = option.querySelector("svg");
+      expect(svg).not.toBeNull();
+      expect(svg.getAttribute("viewBox")).toBe("0 0 18 18");
+      expect(svg.getAttribute("aria-hidden")).toBe("true");
+    });
 
-    // 切到 firefox-native：separator 消失，预览 textarea 放开原生纵向 resize。
-    mockSetting.textareaGripStyle = "firefox-native";
-    view.rerender();
-    expect(view.container.querySelector('[role="separator"]')).toBeNull();
-    const previewTextarea = view.container.querySelector("textarea");
-    expect(previewTextarea.style.resize).toBe("vertical");
+    // firefox-native 项无图标（浏览器原生行为，无自绘图形）。
+    const native = options.find(
+      (option) => option.getAttribute("data-value") === "firefox-native"
+    );
+    expect(native.querySelector("svg")).toBeNull();
 
     await act(async () => view.root.unmount());
     view.container.remove();

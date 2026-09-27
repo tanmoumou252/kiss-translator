@@ -7,6 +7,7 @@ import {
   PROMPT_CATEGORY_USER,
 } from "../../config";
 import Prompts from "./Prompts";
+import { __resetSessionHeightMapForTests } from "../../hooks/useTextareaHeightLock";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 HTMLElement.prototype.scrollTo = jest.fn();
@@ -157,6 +158,48 @@ describe("Prompts", () => {
       expect(fieldRoot.classList).toContain("kt-height-locked");
       expect(fieldRoot.style.height).toBe("40px");
     });
+
+    unmount();
+  });
+
+  test("clearing a locked prompt field releases the height lock completely", () => {
+    __resetSessionHeightMapForTests();
+    const { container, unmount } = renderPrompts(PROMPT_CATEGORY_DICTIONARY);
+
+    const textarea = container.querySelector(
+      'textarea.kt-resizable-textarea:not([aria-hidden="true"])'
+    );
+    const fieldRoot = textarea.closest(".MuiInputBase-root");
+    // 先制造锁定态（手柄仅在锁定态存在期间常驻）。
+    act(() => {
+      fieldRoot
+        .querySelector('[role="separator"]')
+        .dispatchEvent(
+          new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" })
+        );
+    });
+    expect(fieldRoot.classList).toContain("kt-height-locked");
+
+    // 清空内容 → 彻底解锁：手柄消失、root 类与内联高度还原。
+    const setTextareaValue = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value"
+    ).set;
+    act(() => {
+      setTextareaValue.call(textarea, "");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(fieldRoot.querySelector('[role="separator"]')).toBeNull();
+    expect(fieldRoot.classList).not.toContain("kt-height-locked");
+    expect(fieldRoot.style.height).toBe("");
+
+    // 回填 → 手柄重新在场且高度从默认重新开始（锁定已被清除）。
+    act(() => {
+      setTextareaValue.call(textarea, "filled");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(fieldRoot.querySelector('[role="separator"]')).not.toBeNull();
+    expect(fieldRoot.classList).not.toContain("kt-height-locked");
 
     unmount();
   });

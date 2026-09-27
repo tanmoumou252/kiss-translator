@@ -225,6 +225,19 @@ function PromptFields({
     userPromptRef,
     isNativeGrip
   );
+
+  // 内容清空 → 彻底解锁：清除会话高度记忆并还原 root，手柄随内容门控
+  // 消失；门控表达式的锁定分支保留（服务于「有内容且已锁」的存续态）。
+  useEffect(() => {
+    if (!(formData.systemPrompt || "").trim()) {
+      systemHeightLock.releaseHeight();
+    }
+  }, [formData.systemPrompt, systemHeightLock.releaseHeight]);
+  useEffect(() => {
+    if (!(formData.userPrompt || "").trim()) {
+      userHeightLock.releaseHeight();
+    }
+  }, [formData.userPrompt, userHeightLock.releaseHeight]);
   // Only show the second prompt for flows that consume userPrompt.
   const showUserPrompt =
     formData.category === PROMPT_CATEGORY_USER ||
