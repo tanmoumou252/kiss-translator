@@ -1,4 +1,12 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useSetting } from "./Setting";
+
+// 全局 textarea 拉伸手柄样式读取：缺省回落 "concentric-smooth"，任何有效
+// 存量值原样透传。5 个接入视图与设置页预览共用此入口。
+export function useTextareaGripStyle() {
+  const { setting } = useSetting();
+  return setting?.textareaGripStyle || "concentric-smooth";
+}
 
 // 会话内高度记忆：按 lockKey 保存拖拽/键盘调整后的像素高度。
 // 只存在于当前页面会话（不写 localStorage/sessionStorage），组件重挂载后自动恢复。
@@ -34,30 +42,37 @@ function applyLockToRoot(rootEl, height) {
  * @param {string} lockKey 会话内记忆键（同一 key 跨重挂载共享高度）。
  * @param {{current: HTMLTextAreaElement|null}} [textareaRef] 调用方已有的
  *   textarea ref；缺省时使用内部 ref。
+ * @param {boolean} [disabled] 高度锁停用旗标（firefox-native 模式）：置 true
+ *   时不写回锁定高度、不加 kt-height-locked 类，原生 resize 全权接管高度。
  * @returns {{
  *   textareaRef: {current: HTMLTextAreaElement|null},
  *   lockedHeight: number|null,
  *   applyHeight: (height: number) => void,
  * }}
  */
-export default function useTextareaHeightLock(lockKey, textareaRef) {
+export default function useTextareaHeightLock(
+  lockKey,
+  textareaRef,
+  disabled = false
+) {
   const internalRef = useRef(null);
   const targetRef = textareaRef || internalRef;
   const [lockedHeight, setLockedHeight] = useState(
-    () => sessionHeightMap.get(lockKey) ?? null
+    () => (disabled ? null : sessionHeightMap.get(lockKey) ?? null)
   );
 
   // 无依赖数组：宿主每次提交后声明性再断言一次（首次锁定与重挂载恢复
   // 都经此生效）。root 的内联高度不参与 React 的 style diff，重复写
-  // 同一值幂等。
+  // 同一值幂等。disabled（firefox-native）时整体停用锁定写回。
   useLayoutEffect(() => {
-    if (lockedHeight == null) return;
+    if (disabled || lockedHeight == null) return;
     const rootEl = getRootEl(targetRef.current);
     if (rootEl) applyLockToRoot(rootEl, lockedHeight);
   });
 
   const applyHeight = useCallback(
     (height) => {
+      if (disabled) return;
       const next = Math.round(height);
       if (!Number.isFinite(next) || next <= 0) return;
       sessionHeightMap.set(lockKey, next);
@@ -65,7 +80,7 @@ export default function useTextareaHeightLock(lockKey, textareaRef) {
       const rootEl = getRootEl(targetRef.current);
       if (rootEl) applyLockToRoot(rootEl, next);
     },
-    [lockKey, targetRef]
+    [disabled, lockKey, targetRef]
   );
 
   return { textareaRef: targetRef, lockedHeight, applyHeight };

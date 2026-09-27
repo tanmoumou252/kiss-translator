@@ -30,24 +30,33 @@ jest.mock("../../hooks/I18n", () => ({
   useI18n: () => (key) => key,
 }));
 
-jest.mock("../../hooks/Setting", () => {
-  const setting = {
-    uiLang: "en",
-    darkMode: "auto",
-    customStyles: [
-      {
-        styleSlug: "custom-dangerous",
-        styleName: "Custom Dangerous",
-        styleCode: "position: fixed; inset: 0; z-index: 2147483647;",
-      },
-    ],
-  };
-  const updateSetting = jest.fn();
-
-  return {
-    useSetting: () => ({ setting, updateSetting }),
-  };
+// 稳定的 setting 引用避免 useAllTextStyles 抖动；textareaGripStyle 可被
+// updateSetting（字符串契约）或测试直接改写，驱动预览切换。mock 前缀变量
+// 供 jest.mock 工厂引用（babel-plugin-jest-hoist 允许）。
+const mockSetting = {
+  uiLang: "en",
+  darkMode: "auto",
+  textareaGripStyle: "concentric-smooth",
+  customStyles: [
+    {
+      styleSlug: "custom-dangerous",
+      styleName: "Custom Dangerous",
+      styleCode: "position: fixed; inset: 0; z-index: 2147483647;",
+    },
+  ],
+};
+const mockUpdateSetting = jest.fn((patch) => {
+  if (
+    patch &&
+    Object.prototype.hasOwnProperty.call(patch, "textareaGripStyle")
+  ) {
+    mockSetting.textareaGripStyle = patch.textareaGripStyle;
+  }
 });
+
+jest.mock("../../hooks/Setting", () => ({
+  useSetting: () => ({ setting: mockSetting, updateSetting: mockUpdateSetting }),
+}));
 
 jest.mock("../../hooks/Confirm", () => ({
   useConfirm: () => jest.fn(async () => true),
@@ -256,5 +265,111 @@ describe("StylesSetting style previews", () => {
     expect(nameInput.value).toBe("Unsaved style draft");
 
     view.cleanup();
+  });
+});
+
+async function flushMicrotasks() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+describe("StylesSetting textarea grip section", () => {
+  function renderGripSection() {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const render = () => {
+      act(() => {
+        root.render(<StylesSetting />);
+      });
+    };
+    render();
+    return {
+      container,
+      root,
+      rerender: render,
+      async cleanup() {
+        await act(async () => root.unmount());
+        container.remove();
+      },
+    };
+  }
+
+  async function openGripSelect(container) {
+    const select = container.querySelector(
+      ".kt-settings-select [role='combobox']"
+    );
+    expect(select).not.toBeNull();
+    await act(async () => {
+      select.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      await Promise.resolve();
+    });
+    return select;
+  }
+
+  beforeEach(() => {
+    mockUpdateSetting.mockClear();
+    mockSetting.textareaGripStyle = "concentric-smooth";
+  });
+
+  afterEach(async () => {
+    await flushMicrotasks();
+    document.body.innerHTML = "";
+  });
+
+  test("renders the grip section select with exactly 16 options", async () => {
+    const view = renderGripSection();
+    await openGripSelect(view.container);
+    const options = document.body.querySelectorAll('[role="option"]');
+    expect(options).toHaveLength(16);
+    await act(async () => view.root.unmount());
+    view.container.remove();
+  });
+
+  test("persists the selected grip style as a plain string value", async () => {
+    const view = renderGripSection();
+    await openGripSelect(view.container);
+    await act(async () => {
+      [...document.body.querySelectorAll('[role="option"]')]
+        .find((option) => option.getAttribute("data-value") === "upstream-chrome")
+        .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    // SettingsSelect onChange 契约：收到的是解包字符串，非 event 对象。
+    expect(mockUpdateSetting).toHaveBeenCalledWith({
+      textareaGripStyle: "upstream-chrome",
+    });
+    await act(async () => view.root.unmount());
+    view.container.remove();
+  });
+
+  test("previews the real grip component and follows the live variant", async () => {
+    const view = renderGripSection();
+
+    // 默认 concentric-smooth：预览复用真实组件（role=separator 在场 + 双弧）。
+    let separator = view.container.querySelector('[role="separator"]');
+    expect(separator).not.toBeNull();
+    expect(separator.querySelectorAll("svg path")).toHaveLength(2);
+
+    // 切到 upstream-chrome：同一 separator 内 SVG 随 variant 变为单条斜杠。
+    mockSetting.textareaGripStyle = "upstream-chrome";
+    view.rerender();
+    separator = view.container.querySelector('[role="separator"]');
+    expect(separator).not.toBeNull();
+    expect(separator.querySelector("svg path").getAttribute("d")).toBe(
+      "M15 3L3 15h2.5L15 5.5V3zM15 8L8 15h2.5l4.5-4.5V8zM15 13l-2 2h2v-2z"
+    );
+
+    // 切到 firefox-native：separator 消失，预览 textarea 放开原生纵向 resize。
+    mockSetting.textareaGripStyle = "firefox-native";
+    view.rerender();
+    expect(view.container.querySelector('[role="separator"]')).toBeNull();
+    const previewTextarea = view.container.querySelector("textarea");
+    expect(previewTextarea.style.resize).toBe("vertical");
+
+    await act(async () => view.root.unmount());
+    view.container.remove();
   });
 });

@@ -22,6 +22,23 @@ jest.mock("../../libs/detect", () => ({
   tryDetectLang: jest.fn(async () => "en"),
 }));
 
+// 手柄样式：部分 mock（requireActual 保留真实默认导出与 __resetSessionHeightMapForTests
+// 具名导出，整模块 mock 会击穿后者），只替换 useTextareaGripStyle 驱动模式。
+// 同时最小 mock ./Setting：斩断 requireActual(真实 hook) → ./Setting → Storage →
+// apis → query-string(ESM) 的未转译链；真实默认导出不调用 useSetting，零影响。
+jest.mock("../../hooks/Setting", () => ({
+  useSetting: () => ({ setting: {} }),
+}));
+const mockUseTextareaGripStyle = jest.fn(() => "concentric-smooth");
+jest.mock("../../hooks/useTextareaHeightLock", () => {
+  const actual = jest.requireActual("../../hooks/useTextareaHeightLock");
+  return {
+    ...actual,
+    __esModule: true,
+    useTextareaGripStyle: () => mockUseTextareaGripStyle(),
+  };
+});
+
 jest.mock("react-markdown", () => {
   const React = require("react");
 
@@ -1726,6 +1743,47 @@ describe("TranForm API selection persistence (apiSlugsStorageKey)", () => {
       )
     ).toEqual(["beta"]);
 
+    act(() => root.unmount());
+  });
+});
+
+describe("TranForm textarea grip style", () => {
+  afterEach(() => {
+    mockUseTextareaGripStyle.mockReset();
+    mockUseTextareaGripStyle.mockReturnValue("concentric-smooth");
+    document.body.innerHTML = "";
+  });
+
+  test("firefox-native drops the grip, unlocks native resize and keeps the class", () => {
+    mockUseTextareaGripStyle.mockReturnValue("firefox-native");
+    const { container, root } = renderTranForm({
+      text: "library",
+      simpleStyle: false,
+    });
+    const textarea = container.querySelector("textarea");
+    const fieldRoot = textarea.closest(".MuiInputBase-root");
+    // 内容门控已满足（editText="library" 非空），原生模式仍不渲染 separator。
+    expect(fieldRoot.querySelector('[role="separator"]')).toBeNull();
+    expect(getComputedStyle(textarea).resize).toBe("vertical");
+    expect(textarea.classList.contains("kt-resizable-textarea")).toBe(true);
+    expect(textarea.closest(".kt-height-locked")).toBeNull();
+    act(() => root.unmount());
+  });
+
+  test("upstream-chrome renders the grip with the slashed variant and locks resize", () => {
+    mockUseTextareaGripStyle.mockReturnValue("upstream-chrome");
+    const { container, root } = renderTranForm({
+      text: "library",
+      simpleStyle: false,
+    });
+    const textarea = container.querySelector("textarea");
+    const fieldRoot = textarea.closest(".MuiInputBase-root");
+    const grip = fieldRoot.querySelector('[role="separator"]');
+    expect(grip).not.toBeNull();
+    expect(getComputedStyle(textarea).resize).toBe("none");
+    expect(grip.querySelector("svg path").getAttribute("d")).toBe(
+      "M15 3L3 15h2.5L15 5.5V3zM15 8L8 15h2.5l4.5-4.5V8zM15 13l-2 2h2v-2z"
+    );
     act(() => root.unmount());
   });
 });

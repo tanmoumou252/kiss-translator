@@ -48,6 +48,23 @@ jest.mock("./AudioBtn", () => {
   };
 });
 
+// 手柄样式：部分 mock（requireActual 保留真实默认导出），只替换
+// useTextareaGripStyle 驱动 5 端 firefox-native / upstream-chrome 行为。
+// 同时最小 mock ./Setting：斩断 requireActual(真实 hook) → ./Setting → Storage →
+// apis → query-string(ESM) 的未转译链；真实默认导出不调用 useSetting，零影响。
+jest.mock("../../hooks/Setting", () => ({
+  useSetting: () => ({ setting: {} }),
+}));
+const mockUseTextareaGripStyle = jest.fn(() => "concentric-smooth");
+jest.mock("../../hooks/useTextareaHeightLock", () => {
+  const actual = jest.requireActual("../../hooks/useTextareaHeightLock");
+  return {
+    ...actual,
+    __esModule: true,
+    useTextareaGripStyle: () => mockUseTextareaGripStyle(),
+  };
+});
+
 /**
  * Create a Promise that tests can resolve or reject explicitly.
  *
@@ -995,5 +1012,55 @@ describe("TranCont", () => {
       deferred.resolve({ trText: "卸载后的译文" });
       await deferred.promise;
     });
+  });
+});
+
+describe("TranCont textarea grip style", () => {
+  beforeEach(() => {
+    apiTranslate.mockReset();
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    mockUseTextareaGripStyle.mockReset();
+    mockUseTextareaGripStyle.mockReturnValue("concentric-smooth");
+  });
+
+  test("firefox-native drops the grip, unlocks native resize and keeps the class", async () => {
+    mockUseTextareaGripStyle.mockReturnValue("firefox-native");
+    apiTranslate.mockResolvedValueOnce({ trText: "译文" });
+    const { container, root } = renderTranCont();
+    await flushEffects();
+
+    const textarea = container.querySelector(
+      '.kt-translation-result textarea:not([aria-hidden="true"])'
+    );
+    // 内容门控已满足（trText="译文" 非空），原生模式仍不渲染 separator。
+    expect(textarea.value).toBe("译文");
+    const fieldRoot = textarea.closest(".MuiInputBase-root");
+    expect(fieldRoot.querySelector('[role="separator"]')).toBeNull();
+    expect(getComputedStyle(textarea).resize).toBe("vertical");
+    expect(textarea.classList.contains("kt-resizable-textarea")).toBe(true);
+    expect(textarea.closest(".kt-height-locked")).toBeNull();
+    act(() => root.unmount());
+  });
+
+  test("upstream-chrome renders the grip with the slashed variant and locks resize", async () => {
+    mockUseTextareaGripStyle.mockReturnValue("upstream-chrome");
+    apiTranslate.mockResolvedValueOnce({ trText: "译文" });
+    const { container, root } = renderTranCont();
+    await flushEffects();
+
+    const textarea = container.querySelector(
+      '.kt-translation-result textarea:not([aria-hidden="true"])'
+    );
+    const fieldRoot = textarea.closest(".MuiInputBase-root");
+    const grip = fieldRoot.querySelector('[role="separator"]');
+    expect(grip).not.toBeNull();
+    expect(getComputedStyle(textarea).resize).toBe("none");
+    expect(grip.querySelector("svg path").getAttribute("d")).toBe(
+      "M15 3L3 15h2.5L15 5.5V3zM15 8L8 15h2.5l4.5-4.5V8zM15 13l-2 2h2v-2z"
+    );
+    act(() => root.unmount());
   });
 });

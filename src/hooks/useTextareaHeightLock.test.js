@@ -1,7 +1,17 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import TextareaAutosize from "@mui/material/TextareaAutosize";
-import useTextareaHeightLock from "./useTextareaHeightLock";
+import useTextareaHeightLock, {
+  useTextareaGripStyle,
+} from "./useTextareaHeightLock";
+
+// useTextareaGripStyle 依赖 useSetting；以可变 mockGripSetting 驱动缺省回落
+// 与存量值透传两条断言。默认导出 useTextareaHeightLock 不调用 useSetting，
+// 故本 mock 对既有用例零影响。
+const mockGripSetting = { textareaGripStyle: undefined };
+jest.mock("./Setting", () => ({
+  useSetting: () => ({ setting: mockGripSetting }),
+}));
 
 function LockHost({ lockKey, minRows = 3, onChange }) {
   const lock = useTextareaHeightLock(lockKey);
@@ -26,6 +36,22 @@ async function renderLock(ui) {
   const fieldRoot = container.querySelector(".MuiInputBase-root");
   const textarea = container.querySelector("textarea");
   return { container, root, fieldRoot, textarea };
+}
+
+function GripStyleHost({ onResult }) {
+  onResult(useTextareaGripStyle());
+  return null;
+}
+
+async function renderGripStyle() {
+  let captured;
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(<GripStyleHost onResult={(value) => (captured = value)} />);
+  });
+  return { root, getCaptured: () => captured };
 }
 
 describe("useTextareaHeightLock", () => {
@@ -117,5 +143,20 @@ describe("useTextareaHeightLock", () => {
     expect(setItemSpy).not.toHaveBeenCalled();
     expect(window.localStorage.getItem("no-storage")).toBeNull();
     await act(async () => root.unmount());
+  });
+
+  test("useTextareaGripStyle falls back to the default concentric arc", async () => {
+    mockGripSetting.textareaGripStyle = undefined;
+    const { root, getCaptured } = await renderGripStyle();
+    expect(getCaptured()).toBe("concentric-smooth");
+    await act(async () => root.unmount());
+  });
+
+  test("useTextareaGripStyle passes through a stored grip style value", async () => {
+    mockGripSetting.textareaGripStyle = "hidden";
+    const { root, getCaptured } = await renderGripStyle();
+    expect(getCaptured()).toBe("hidden");
+    await act(async () => root.unmount());
+    mockGripSetting.textareaGripStyle = undefined;
   });
 });

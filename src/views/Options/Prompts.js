@@ -51,7 +51,9 @@ import {
 import { usePromptList } from "../../hooks/Prompt";
 import CodeField from "./CodeField";
 import TextareaResizeGrip from "../../components/TextareaResizeGrip";
-import useTextareaHeightLock from "../../hooks/useTextareaHeightLock";
+import useTextareaHeightLock, {
+  useTextareaGripStyle,
+} from "../../hooks/useTextareaHeightLock";
 
 const TRANSLATION_PROMPT_PLACEHOLDERS = [
   INPUT_PLACE_TEXT,
@@ -211,13 +213,17 @@ function PromptFields({
   const promptDisplayName = getPromptDisplayName(prompt, i18n);
   const systemPromptRef = useRef(null);
   const userPromptRef = useRef(null);
+  const gripStyle = useTextareaGripStyle();
+  const isNativeGrip = gripStyle === "firefox-native";
   const systemHeightLock = useTextareaHeightLock(
     "options-prompt-system",
-    systemPromptRef
+    systemPromptRef,
+    isNativeGrip
   );
   const userHeightLock = useTextareaHeightLock(
     "options-prompt-user",
-    userPromptRef
+    userPromptRef,
+    isNativeGrip
   );
   // Only show the second prompt for flows that consume userPrompt.
   const showUserPrompt =
@@ -324,6 +330,7 @@ function PromptFields({
           disabled={isPreset}
           InputProps={{
             endAdornment:
+              !isNativeGrip &&
               (formData.systemPrompt.trim() ||
                 systemHeightLock.lockedHeight != null) ? (
                 <TextareaResizeGrip
@@ -331,12 +338,13 @@ function PromptFields({
                   onResize={systemHeightLock.applyHeight}
                   value={systemHeightLock.lockedHeight}
                   label={i18n("field_resize_height")}
+                  variant={gripStyle}
                 />
               ) : null,
           }}
           inputProps={{
             className: "kt-resizable-textarea",
-            style: { resize: "none" },
+            style: { resize: isNativeGrip ? "vertical" : "none" },
           }}
           sx={{
             "& .MuiInputBase-root": {
@@ -376,6 +384,7 @@ function PromptFields({
             disabled={isPreset}
             InputProps={{
               endAdornment:
+                !isNativeGrip &&
                 (formData.userPrompt.trim() ||
                   userHeightLock.lockedHeight != null) ? (
                   <TextareaResizeGrip
@@ -383,12 +392,13 @@ function PromptFields({
                     onResize={userHeightLock.applyHeight}
                     value={userHeightLock.lockedHeight}
                     label={i18n("field_resize_height")}
+                    variant={gripStyle}
                   />
                 ) : null,
             }}
             inputProps={{
               className: "kt-resizable-textarea",
-              style: { resize: "none" },
+              style: { resize: isNativeGrip ? "vertical" : "none" },
             }}
             sx={{
               "& .MuiInputBase-root": {

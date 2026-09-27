@@ -45,7 +45,9 @@ import { apiTranslate } from "../../apis";
 import { useAlert } from "../../hooks/Alert";
 import { useI18n } from "../../hooks/I18n";
 import TextareaResizeGrip from "../../components/TextareaResizeGrip";
-import useTextareaHeightLock from "../../hooks/useTextareaHeightLock";
+import useTextareaHeightLock, {
+  useTextareaGripStyle,
+} from "../../hooks/useTextareaHeightLock";
 import { useRules } from "../../hooks/Rules";
 import { useSetting } from "../../hooks/Setting";
 import { isWeb } from "../../libs/client";
@@ -1655,8 +1657,18 @@ export default function TerminologyPlayground({
   // 请求/响应面板为普通 Box 容器，不做拖高。
   // 两个术语输入框：锁定高度承载在 InputBase root 上（与其他消费者同构），
   // 手柄按内容门控条件渲染（内容非空或已锁定高度才在场）。
-  const termsHeightLock = useTextareaHeightLock("terminology-terms");
-  const aiTermsHeightLock = useTextareaHeightLock("terminology-ai-terms");
+  const gripStyle = useTextareaGripStyle();
+  const isNativeGrip = gripStyle === "firefox-native";
+  const termsHeightLock = useTextareaHeightLock(
+    "terminology-terms",
+    undefined,
+    isNativeGrip
+  );
+  const aiTermsHeightLock = useTextareaHeightLock(
+    "terminology-ai-terms",
+    undefined,
+    isNativeGrip
+  );
   // AI 术语例句轮换 seed（与本地术语区 termSeed 语义一致："" = 缺省确定性行为，递增轮换）。
   const [aiTermSeed, setAiTermSeed] = useState("");
 
@@ -1927,10 +1939,11 @@ export default function TerminologyPlayground({
           inputProps={{
             className: "kt-resizable-textarea",
             "aria-describedby": "terminology-terms-helper",
-            style: { resize: "none" },
+            style: { resize: isNativeGrip ? "vertical" : "none" },
           }}
           InputProps={{
             endAdornment:
+              !isNativeGrip &&
               ((termsDraft || "").trim() ||
                 termsHeightLock.lockedHeight != null) ? (
                 <TextareaResizeGrip
@@ -1938,6 +1951,7 @@ export default function TerminologyPlayground({
                   onResize={termsHeightLock.applyHeight}
                   value={termsHeightLock.lockedHeight}
                   label={i18n("field_resize_height")}
+                  variant={gripStyle}
                 />
               ) : null,
           }}
@@ -2218,10 +2232,11 @@ export default function TerminologyPlayground({
           inputProps={{
             className: "kt-resizable-textarea",
             "aria-describedby": "terminology-ai-terms-helper",
-            style: { resize: "none" },
+            style: { resize: isNativeGrip ? "vertical" : "none" },
           }}
           InputProps={{
             endAdornment:
+              !isNativeGrip &&
               ((aiTermsDraft || "").trim() ||
                 aiTermsHeightLock.lockedHeight != null) ? (
                 <TextareaResizeGrip
@@ -2229,6 +2244,7 @@ export default function TerminologyPlayground({
                   onResize={aiTermsHeightLock.applyHeight}
                   value={aiTermsHeightLock.lockedHeight}
                   label={i18n("field_resize_height")}
+                  variant={gripStyle}
                 />
               ) : null,
           }}
