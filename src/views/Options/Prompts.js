@@ -350,9 +350,6 @@ function PromptFields({
             "& .MuiInputBase-root": {
               overflow: "visible",
             },
-            '& textarea:not([aria-hidden="true"])': {
-              resize: "none",
-            },
           }}
         />
         {!isPreset && (
@@ -403,9 +400,6 @@ function PromptFields({
             sx={{
               "& .MuiInputBase-root": {
                 overflow: "visible",
-              },
-              '& textarea:not([aria-hidden="true"])': {
-                resize: "none",
               },
             }}
           />

@@ -1957,9 +1957,6 @@ export default function TerminologyPlayground({
             "& .MuiInputBase-root": {
               overflow: "visible",
             },
-            '& textarea:not([aria-hidden="true"])': {
-              resize: "none",
-            },
           }}
           data-testid="terminology-terms-input"
         />
@@ -2250,9 +2247,6 @@ export default function TerminologyPlayground({
             mt: 2,
             "& .MuiInputBase-root": {
               overflow: "visible",
-            },
-            '& textarea:not([aria-hidden="true"])': {
-              resize: "none",
             },
           }}
           data-testid="terminology-ai-terms-input"

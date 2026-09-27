@@ -393,9 +393,6 @@ export default function TranCont({
           "& .MuiInputBase-root": {
             overflow: "visible",
           },
-          '& textarea:not([aria-hidden="true"])': {
-            resize: "none",
-          },
         }}
         value={trText}
         helperText={error}

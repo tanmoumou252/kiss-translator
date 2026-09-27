@@ -348,10 +348,12 @@ describe("StylesSetting textarea grip section", () => {
   test("previews the real grip component and follows the live variant", async () => {
     const view = renderGripSection();
 
-    // 默认 concentric-smooth：预览复用真实组件（role=separator 在场 + 双弧）。
+    // 默认 concentric-smooth：预览复用真实组件（role=separator 在场 + 双弧），
+    // 且具备无障碍名称（与真实接入端同口径的 field_resize_height）。
     let separator = view.container.querySelector('[role="separator"]');
     expect(separator).not.toBeNull();
     expect(separator.querySelectorAll("svg path")).toHaveLength(2);
+    expect(separator.getAttribute("aria-label")).toBe("field_resize_height");
 
     // 切到 upstream-chrome：同一 separator 内 SVG 随 variant 变为单条斜杠。
     mockSetting.textareaGripStyle = "upstream-chrome";
