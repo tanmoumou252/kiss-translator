@@ -4,7 +4,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { apiTranslate } from "../../apis";
 import {
   API_SPE_TYPES,
@@ -182,7 +182,8 @@ export default function TranCont({
 
   // 内容清空 → 彻底解锁：清除会话高度记忆并还原 root，手柄随内容门控
   // 消失；门控表达式的锁定分支保留（服务于「有内容且已锁」的存续态）。
-  useEffect(() => {
+  // useLayoutEffect：空内容解锁须先于绘制，防重挂载首帧以记忆高度闪现。
+  useLayoutEffect(() => {
     if (!trText.trim()) {
       resultHeightLock.releaseHeight();
     }

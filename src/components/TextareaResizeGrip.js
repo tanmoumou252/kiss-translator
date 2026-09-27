@@ -377,6 +377,10 @@ export default function TextareaResizeGrip({
     const baselineEl = getBaselineEl();
     if (!baselineEl || event.button !== 0) return;
     event.preventDefault();
+    // preventDefault 抑制派生 mousedown 的默认焦点转移，鼠标路径必须显式
+    // 聚焦手柄：拖拽松手后方向键立即触达 handleKeyDown；鼠标触发的 focus
+    // 不匹配 :focus-visible，不会闪现焦点环。
+    event.currentTarget.focus({ preventScroll: true });
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch (error) {

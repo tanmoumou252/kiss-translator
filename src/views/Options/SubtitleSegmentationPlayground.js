@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -202,7 +202,8 @@ export default function SubtitleSegmentationPlayground({
   // 内容清空 → 彻底解锁：清除会话高度记忆并还原 root，手柄随内容门控
   // 消失；门控表达式的锁定分支保留（服务于「有内容且已锁」的存续态）。
   // resultText 在下方派生声明，其解锁 effect 紧随声明之后（规避 TDZ）。
-  useEffect(() => {
+  // useLayoutEffect：空内容解锁须先于绘制，防重挂载首帧以记忆高度闪现。
+  useLayoutEffect(() => {
     if (!(sourceText || "").trim()) {
       sourceHeightLock.releaseHeight();
     }
@@ -537,7 +538,8 @@ export default function SubtitleSegmentationPlayground({
     : "";
 
   // 结果内容清空（切语言/换样本等）→ 彻底解锁结果框高度锁。
-  useEffect(() => {
+  // useLayoutEffect：空内容解锁须先于绘制，防重挂载首帧以记忆高度闪现。
+  useLayoutEffect(() => {
     if (!(resultText || "").trim()) {
       resultHeightLock.releaseHeight();
     }

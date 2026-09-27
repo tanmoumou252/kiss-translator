@@ -171,6 +171,34 @@ describe("TextareaResizeGrip", () => {
     await act(async () => root.unmount());
   });
 
+  // 鼠标按下即聚焦手柄：handlePointerDown 的 preventDefault 抑制了派生
+  // mousedown 的默认焦点转移，键盘调高路径须显式聚焦保持可达。
+  test("focuses the grip on primary-button pointerdown so keyboard resize is reachable after drag", async () => {
+    const { grip, root } = await renderGrip(jest.fn());
+    expect(document.activeElement).not.toBe(grip);
+    firePointer(grip, "pointerdown", 100);
+    expect(document.activeElement).toBe(grip);
+    firePointer(grip, "pointerup", 100);
+    expect(document.activeElement).toBe(grip);
+    await act(async () => root.unmount());
+  });
+
+  // 对照防误伤：非主键（右键）pointerdown 早退，不产生焦点副作用。
+  test("does not focus the grip on non-primary-button pointerdown", async () => {
+    const { grip, root } = await renderGrip(jest.fn());
+    act(() => {
+      grip.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          button: 2,
+          clientY: 100,
+        })
+      );
+    });
+    expect(document.activeElement).not.toBe(grip);
+    await act(async () => root.unmount());
+  });
+
   // 手柄视觉样式全部经父级 Box sx 的 "& svg" 选择器由 Emotion 运行时
   // 注入（本仓库无 Emotion jsx pragma 编译路径，裸元素 sx 会静默失效）。
   // 本用例直读注入产物：自建独立 cache（speedy:false 使 jsdom 下 style

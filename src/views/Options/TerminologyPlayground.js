@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -1672,12 +1672,14 @@ export default function TerminologyPlayground({
 
   // 内容清空 → 彻底解锁：清除会话高度记忆并还原 root，手柄随内容门控
   // 消失；门控表达式的锁定分支保留（服务于「有内容且已锁」的存续态）。
-  useEffect(() => {
+  // useLayoutEffect：空内容解锁须先于绘制，防重挂载首帧以记忆高度闪现
+  // （本端路径因草稿持久化实际不可达，按 5 端对称性防御性统一）。
+  useLayoutEffect(() => {
     if (!(termsDraft || "").trim()) {
       termsHeightLock.releaseHeight();
     }
   }, [termsDraft, termsHeightLock.releaseHeight]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!(aiTermsDraft || "").trim()) {
       aiTermsHeightLock.releaseHeight();
     }
