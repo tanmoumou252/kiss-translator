@@ -1,17 +1,40 @@
-import { useRef } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 
 // 命中热区 24×24，大于 18×18 视觉弧线：按哪里能触发由代码定义，跨浏览器一致。
 const HOT_ZONE_PX = 24;
 // 拖动/键盘可调的最小目标高度（单行 23px + small 根节点纵向 padding 17px）。
-const MIN_TARGET_HEIGHT_PX = 40;
+// 导出供 useTextareaHeightLock 的实测重钳共用同一最小高度护栏口径。
+export const MIN_TARGET_HEIGHT_PX = 40;
 // 方向键单次步进（Shift ×4）。
 const KEYBOARD_STEP_PX = 12;
 // 高度上界相对视口底部的安全留白。
-const VIEWPORT_GUTTER_PX = 8;
+// useTextareaHeightLock 的挂载后实测重钳效应复用同一留白口径。
+export const VIEWPORT_GUTTER_PX = 8;
+// 测量基准选择器单源：useTextareaHeightLock 的实测重钳与手柄 clampHeight
+// 必须命中同一基线元素（InputBase root），避免与 textarea content-box 错位。
+export const INPUT_BASE_ROOT_SELECTOR = ".MuiInputBase-root";
+
+// 会话记忆高度（useTextareaHeightLock 的恢复与公开写入口）的双向钳制：
+// 上界取当前视口高度，下界取最小目标高度，非有限数回落最小高度（供恢复
+// 路径兜底；公开写入口 applyHeight 先行静默拒绝非有限数）。本 helper 是
+// 无 DOM 的保守视口口径；挂载后由 hook 的布局效应按实测基线 top 重钳
+// （视口 − 基线 top − 留白），滚动祖先各层上限仍只由手柄拖拽/键盘路径
+// （clampHeight）承担。
+export function clampGripMemoryHeight(
+  height,
+  viewportHeight = window.innerHeight
+) {
+  const rounded = Math.round(height);
+  if (!Number.isFinite(rounded)) return MIN_TARGET_HEIGHT_PX;
+  const max = Number.isFinite(viewportHeight)
+    ? Math.max(MIN_TARGET_HEIGHT_PX, Math.round(viewportHeight))
+    : MIN_TARGET_HEIGHT_PX;
+  return Math.max(MIN_TARGET_HEIGHT_PX, Math.min(rounded, max));
+}
 
 // 样式注册表：key → { fill, content }（18×18 viewBox，currentColor 着色）。
-// root fill 随资产族而变：描边族 fill="none"，填充族（点阵/波点/上游斜杠）
+// root fill 随资产族而变：描边族 fill="none"，填充族（点阵/波点）
 // root fill="currentColor" 供 circle/path 继承；混合族（星芒/除号/百分号/伴
 // 星）root fill="none" 且各填充圆自带 fill="currentColor"。图形数据一律按
 // 计划「SVG 资产索引表」从 .kilo/输入框拉伸手柄样式全集.md 逐条照抄，严禁重绘。
@@ -258,16 +281,67 @@ const GRIP_SVGS = {
       </>
     ),
   },
-  // 完全隐藏：渲染空图形、保留 24×24 热区（content 为 null）。
+  // hidden 条目保留仅为两个用途：TEXTAREA_GRIP_STYLE_KEYS 由
+  // Object.keys 派生（删条目即丢设置选项、StylesSetting 单源护栏必红），
+  // GripGlyph 以空 svg 占位（下拉图标）。手柄组件对 hidden 早退不渲染
+  // （B1 决策反转：旧「隐形热区」语义推翻——不可见却可拖是隐蔽交互面，
+  // textarea 回退原生 resize）。
   hidden: { fill: "none", content: null },
-  // 上游 Chromium 手绘经典斜杠：fill 放 svg 根（资产源 :170），path 不带 fill。
-  "upstream-chrome": {
-    fill: "currentColor",
-    content: (
-      <path d="M15 3L3 15h2.5L15 5.5V3zM15 8L8 15h2.5l4.5-4.5V8zM15 13l-2 2h2v-2z" />
-    ),
-  },
 };
+
+/**
+ * 手柄样式 key 归一：注册表**自有属性**命中的 key 原样返回，其余值（未知值、
+ * 已下线的存量设置值、以及 "constructor" / "toString" 之类的原型链键名）
+ * 一律回落 "concentric-smooth"，保证消费方（GripGlyph 图标与
+ * TextareaResizeGrip 手柄）不会拿到注册表里不存在的样式 key（该情形下查表
+ * 回落会产出无 fill 的空图形）。用 hasOwnProperty 而非真值查表：GRIP_SVGS
+ * 是对象字面量，真值查表会被 Object.prototype 上的键名穿透。
+ *
+ * @param {string|undefined} variant 待归一的手柄样式 key（源自设置项，可为缺省）。
+ * @returns {string} 可安全渲染的样式 key。
+ */
+export function resolveGripStyle(variant) {
+  return Object.prototype.hasOwnProperty.call(GRIP_SVGS, variant)
+    ? variant
+    : "concentric-smooth";
+}
+
+/**
+ * 手柄样式 key 的规范顺序清单（= Object.keys(GRIP_SVGS)，含 hidden）。
+ * 下拉选项等消费方据此对账：注册表新增/删减 key 而选项未同步时，
+ * StylesSetting.test.js 的单源护栏断言必红。
+ */
+export const TEXTAREA_GRIP_STYLE_KEYS = Object.keys(GRIP_SVGS);
+
+/**
+ * 纯展示手柄图形：复用 GRIP_SVGS 注册表与 svg 壳形态（width/height/
+ * viewBox/fill/aria-hidden），供下拉选项等静态场景内嵌图标。无状态、
+ * 无交互、aria-hidden。未知 key 回落 "concentric-smooth"（与组件渲染
+ * 回落口径一致）；hidden 渲染空 svg 占位（与手柄 hidden 语义对齐）。
+ * 仅导出本组件，不导出注册表原始数据。
+ *
+ * @param {Object} props
+ * @param {string} props.variant 手柄样式 key（见 GRIP_SVGS）。
+ * @param {number} [props.size] 渲染尺寸，缺省 18（viewBox 恒为 18×18）。
+ * @returns {JSX.Element}
+ */
+export function GripGlyph({ variant, size = 18 }) {
+  // 查表统一经 resolveGripStyle 的自有属性判定：真值查表会被
+  // Object.prototype 键名（"constructor"/"toString"）穿透。
+  const grip = GRIP_SVGS[resolveGripStyle(variant)];
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 18 18"
+      fill={grip.fill}
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      {grip.content}
+    </svg>
+  );
+}
 
 // 视觉为两条同心圆弧的内联 SVG（18×18 viewBox，外弧半径 6px、内弧半径
 // 3px，层间恒定 3px 同心间距，stroke-width 1.8、round 端点）：弧线曲率
@@ -285,35 +359,142 @@ const GRIP_SVGS = {
  * 锁定写入对象同一口径，避免与 textarea 的 content-box 几何错位。
  *
  * Pointer Events 单路径：pointerdown 记起点并 setPointerCapture（capture
- * 不可用时事件仍绑在手柄上），pointermove 现测现算 clamp 后回调 onResize，
- * pointerup/pointercancel/lostpointercapture 闭合会话。键盘 ArrowDown 增高、
- * ArrowUp 减高（步进 12px，Shift ×4）。高度状态与回写由
- * useTextareaHeightLock 负责，本组件只上报新高度；是否渲染由消费方按
- * 内容门控决定。
+ * 不可用时不建立会话，与 capture 成功才可拖拽的语义一致），pointermove
+ * 现测现算 clamp 后回调 onResize，pointerup/pointercancel/lostpointercapture
+ * 闭合会话；会话记录 pointerId，异指针的按下/移动/收尾一律忽略。键盘
+ * ArrowDown 增高、ArrowUp 减高（步进 12px，Shift ×4）。ARIA 语义为
+ * slider：valuemax 取视口高度（渲染期求值的拖高上限保守上界），valuetext
+ * 以像素值播报。高度状态与回写由 useTextareaHeightLock 负责，本组件只
+ * 上报新高度；是否渲染由消费方按内容门控决定。
  *
  * @param {Object} props
  * @param {{current: HTMLTextAreaElement|null}} props.target 目标 textarea ref。
  * @param {(height: number) => void} props.onResize 高度变更回调。
- * @param {number|null} [props.value] 当前锁定高度（aria-valuenow）。
+ * @param {number|null} [props.value] 当前锁定高度（aria-valuenow）。未锁定
+ *   时回落挂载后补测的基线元素实测高度（不可测时回落最小高度），播报值
+ *   按 aria-valuemax 钳制，保证 role="slider" 恒携带落在规范区间内的
+ *   aria-valuenow。
  * @param {string} props.label 无障碍名称（aria-label + title）。
  * @param {string} [props.variant] 手柄样式 key（见 GRIP_SVGS），缺省回落
  *   "concentric-smooth"；未知值同样回落，保证永不渲染空手柄。
+ * @param {() => void} [props.onRelease] 双击显式解锁回调（B3）：消费方
+ *   传入 hook 的 releaseHeight；未传时双击为 no-op。
+ * @param {string} [props.unlockHint] 解锁提示文案（消费方经 i18n 传入；
+ *   组件不引 i18n，维持现契约）。非空时与 label 无分隔符直连拼进 title，
+ *   文案须自带前导空格与括号（括号全角/半角按语言本地化，见
+ *   i18n.js 的 field_resize_unlock_hint 契约注释）。
  */
+// 取节点所在文档片段（document 或 shadowRoot）的当前活动元素。Shadow DOM
+// 宿主下 document.activeElement 只返回 shadow host，无法判定输入框与手柄
+// 的真实焦点归属，故经 getRootNode 定位所属文档片段。
+function activeElementOf(node) {
+  const root =
+    node && typeof node.getRootNode === "function"
+      ? node.getRootNode()
+      : document;
+  return root?.activeElement ?? document.activeElement;
+}
+
 export default function TextareaResizeGrip({
   target,
   onResize,
   value,
   label,
   variant = "concentric-smooth",
+  onRelease,
+  unlockHint,
 }) {
   const sessionRef = useRef(null);
-  // 命中未知 key 回落默认双弧；hidden 命中自身（content=null，保留热区空图形）。
-  const grip = GRIP_SVGS[variant] ?? GRIP_SVGS["concentric-smooth"];
+  // 读屏播报上界：初始为视口保守值，随 clampHeight 现算出的真实钳制
+  // 上界同步更新（仅在事件回调中 setState，无渲染回路）。病态视口
+  // （innerHeight < 最小目标高度）下受最小高度托底，valuemax 恒不低于
+  // valuemin。
+  const [ariaValueMax, setAriaValueMax] = useState(() =>
+    Math.max(MIN_TARGET_HEIGHT_PX, Math.round(window.innerHeight))
+  );
+  // 未锁定时 slider 值的回落：渲染期保持纯函数（不读 DOM），实测值由
+  // 挂载后的布局效应补测写入（见 getBaselineEl 之后的 useLayoutEffect）。
+  // 初始回落最小高度，与旧渲染期回落的最小高度口径一致。
+  const [fallbackHeight, setFallbackHeight] = useState(MIN_TARGET_HEIGHT_PX);
+  // 命中未知 key 回落默认双弧；hidden 命中自身后由组件早退（不渲染手柄，
+  // textarea 回退原生 resize——早退分支见 fallback 补测效应之后）。
+  // 查表统一经 resolveGripStyle 的自有属性判定（与 GripGlyph 同口径），
+  // 真值查表会被 Object.prototype 键名（"constructor"/"toString"）穿透。
+  const grip = GRIP_SVGS[resolveGripStyle(variant)];
 
-  const getBaselineEl = () => {
+  // 基线元素定位经 useCallback 稳定：fallback 补测效应按锁定态切换收敛
+  // 依赖（B6），稳定引用避免效应被逐渲染重触发。
+  const getBaselineEl = useCallback(() => {
     const el = target.current;
     if (!el) return null;
-    return el.closest(".MuiInputBase-root");
+    return el.closest(INPUT_BASE_ROOT_SELECTOR);
+  }, [target]);
+
+  // 挂载后补测未锁定时的 slider 回落值：布局效应在 ref 挂载后、绘制前
+  // 运行，实测基线元素高度写入 state（同值 setState 被 React Object.is
+  // 判等豁免，测量收敛后无渲染回路）。依赖收敛为 [value, target]（经
+  // useCallback 稳定的 getBaselineEl 一并列入以满足 exhaustive-deps，
+  // 语义与 [value, target] 等价）：锁定态切换（value 数值 ↔ 非数值）或
+  // 目标变更时补测一次，兜底播报值不滞留旧值；键入引起的内容高度变化
+  // 不再逐渲染实测——fallbackHeight 仅作 slider 播报回落值，非布局数据，
+  // 短暂过期可接受。
+  useLayoutEffect(() => {
+    // 仅有限数视为有效锁定：NaN/Infinity 不是可用的锁定高度，按未锁定
+    // 口径继续补测回落值，与播报计算的 Number.isFinite 判定同口径。
+    if (Number.isFinite(value)) return;
+    setFallbackHeight(
+      Math.max(
+        MIN_TARGET_HEIGHT_PX,
+        Math.round(getBaselineEl()?.offsetHeight || 0)
+      )
+    );
+  }, [value, target, getBaselineEl]);
+
+  // hidden 变体早退（B1 决策反转）：完全不渲染手柄，textarea 回退原生
+  // resize。置于全部 hooks 之后满足 Rules of Hooks——hidden ↔ 其他样式
+  // 切换重渲染时 hook 调用序列保持一致。GRIP_SVGS.hidden 条目保留
+  // （TEXTAREA_GRIP_STYLE_KEYS 派生与 GripGlyph 占位依赖它），
+  // resolveGripStyle("hidden") 归一化原样返回，早退分支对存量 hidden
+  // 用户必然触发。
+  if (resolveGripStyle(variant) === "hidden") {
+    return null;
+  }
+
+  // 逐级上溯收集全部纵向可滚动祖先的上限：拖高不得把字段推出任何一层
+  // 滚动容器的可见范围（多层嵌套滚动时各层上限取最小值），否则手柄随
+  // 字段沉入折叠区不可达。overflow 无选择器可表达（closest 只匹配选择
+  // 器串），故自字段根逐级向上读 computed overflowY。测量时机按路径区
+  // 分：拖拽会话在 pointerdown 快照一次（会话内指针被 capture，用户无
+  // 法同时滚动祖先容器，祖先几何不变）；键盘与重钳路径现测现算。
+  const getScrollAncestorCapPx = (baselineEl, baselineTop) => {
+    let cap = null;
+    let container = baselineEl.parentElement;
+    while (container) {
+      const overflowY = window.getComputedStyle(container).overflowY;
+      if (overflowY === "auto" || overflowY === "scroll") {
+        const layerCap = Math.floor(
+          container.getBoundingClientRect().bottom -
+            baselineTop -
+            VIEWPORT_GUTTER_PX
+        );
+        cap = cap == null ? layerCap : Math.min(cap, layerCap);
+      }
+      container = container.parentElement;
+    }
+    return cap;
+  };
+
+  // 视口 + 滚动祖先的全量上界实测：各层取最小者。pointerdown 会话快照
+  // 与键盘 clampHeight 共用同一口径（留白与基线元素选择器同源）。
+  const measureBoundsMaxPx = (baselineEl) => {
+    const { top } = baselineEl.getBoundingClientRect();
+    const viewportMax = Math.floor(
+      window.innerHeight - top - VIEWPORT_GUTTER_PX
+    );
+    const scrollAncestorCap = getScrollAncestorCapPx(baselineEl, top);
+    return scrollAncestorCap == null
+      ? viewportMax
+      : Math.min(viewportMax, scrollAncestorCap);
   };
 
   const clampHeight = (height) => {
@@ -322,47 +503,97 @@ export default function TextareaResizeGrip({
       : MIN_TARGET_HEIGHT_PX;
     const baselineEl = getBaselineEl();
     if (!baselineEl) return Math.max(MIN_TARGET_HEIGHT_PX, rounded);
-    // 视口上限每次现测现算，禁止缓存。
-    const { top } = baselineEl.getBoundingClientRect();
-    const viewportMax = Math.floor(
-      window.innerHeight - top - VIEWPORT_GUTTER_PX
-    );
-    const max = Number.isFinite(viewportMax)
-      ? Math.max(MIN_TARGET_HEIGHT_PX, viewportMax)
+    // 非会话路径（键盘步进）现测现算：视口与全部纵向可滚动祖先各层取
+    // 最小者。拖拽会话边界已在 pointerdown 快照（见 handlePointerDown），
+    // pointermove 仅做纯算术钳制，不逐事件实测 DOM。
+    const boundsMax = measureBoundsMaxPx(baselineEl);
+    const max = Number.isFinite(boundsMax)
+      ? Math.max(MIN_TARGET_HEIGHT_PX, boundsMax)
       : MIN_TARGET_HEIGHT_PX;
+    // 播报上界与实际钳制上界同步：窗口 resize / 滚动祖先钳制后，
+    // aria-valuemax 不再停留在初始视口保守值。
+    setAriaValueMax(max);
     return Math.min(Math.max(rounded, MIN_TARGET_HEIGHT_PX), max);
   };
 
   const endSession = (event) => {
-    if (!sessionRef.current) return;
+    const session = sessionRef.current;
+    // 异 pointerId 的 up/cancel/lostpointercapture 不闭合会话（多指防护）。
+    if (!session || event.pointerId !== session.pointerId) return;
     sessionRef.current = null;
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
     } catch (error) {
       // jsdom 与旧浏览器可能未实现 pointer capture，忽略即可。
     }
+    // 焦点归还兜底：某些平台在 preventDefault 下仍会把焦点转移到手柄。
+    // 会话开始时 textarea 持有焦点、而此刻焦点仍滞留在手柄，则把焦点交还
+    // textarea（preventScroll 避免归还引发滚动）；否则不扰动焦点归属，
+    // 输入框光标/选区/输入法合成态全程不受影响。
+    const textareaEl = target.current;
+    if (
+      session.hadTextareaFocus &&
+      textareaEl &&
+      activeElementOf(event.currentTarget) === event.currentTarget
+    ) {
+      textareaEl.focus({ preventScroll: true });
+    }
   };
 
   const handlePointerDown = (event) => {
+    // 防重入：活动会话期间的后续 pointerdown（多指/重复按下）不覆盖会话。
+    if (sessionRef.current) return;
     const baselineEl = getBaselineEl();
     if (!baselineEl || event.button !== 0) return;
+    // 焦点归属契约：鼠标 pointerdown 全程不抢 textarea 焦点。主动 focus
+    // 手柄会立刻 blur 输入框——光标/选区消失、按键落到非文本宿主被静默
+    // 吞掉、输入法合成态被打断、方向键改由 handleKeyDown 接管变成调高。
+    // 键盘调高应经 Tab 聚焦手柄后由 handleKeyDown 承载（role="slider" 的
+    // 标准无障碍路径），无需 pointerdown 抢焦点。记录按下瞬间 textarea
+    // 是否持有焦点，供 endSession 在焦点被平台滞留到手柄时归还。
+    const hadTextareaFocus =
+      activeElementOf(event.currentTarget) === target.current;
     event.preventDefault();
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch (error) {
-      // capture 失败不阻断拖拽：事件仍绑定在手柄元素上。
+      // capture 不可用则不建立拖拽会话（与 onLostPointerCapture 的
+      // 「capture 成功才可拖拽」语义一致）：无 capture 的会话会在指针
+      // 移出热区后丢失全部事件，terminate 语义不制造该状态。
+      return;
     }
     sessionRef.current = {
+      pointerId: event.pointerId,
       startY: event.clientY,
       startHeight: baselineEl.offsetHeight,
+      hadTextareaFocus,
+      // 会话边界快照：拖拽全程指针被 capture，用户无法同时滚动祖先容器，
+      // 祖先几何在会话内不变——边界实测一次存入会话，pointermove 仅做
+      // 纯算术钳制（O(祖先数×2) 次 DOM 读收敛为每会话 1 次）。快照口径
+      // 与键盘 clampHeight 同源（measureBoundsMaxPx）。「禁止缓存」的原
+      // 始顾虑（跨事件几何过期）由会话生命周期精确限定：缓存半径从
+      // 「永久」缩到「单次拖拽会话」，非会话路径仍现测现算。
+      boundsMax: (() => {
+        const raw = measureBoundsMaxPx(baselineEl);
+        return Number.isFinite(raw)
+          ? Math.max(MIN_TARGET_HEIGHT_PX, raw)
+          : MIN_TARGET_HEIGHT_PX;
+      })(),
     };
+    // 快照时刻同步播报上界：拖拽全程 aria-valuemax 与实际钳制上界一致。
+    setAriaValueMax(sessionRef.current.boundsMax);
   };
 
   const handlePointerMove = (event) => {
     const session = sessionRef.current;
-    if (!session) return;
+    // 异 pointerId 的 move 不改高度（多指防护）。
+    if (!session || event.pointerId !== session.pointerId) return;
+    // 边界取 pointerdown 快照（会话内祖先几何不变），仅做纯算术钳制。
+    const rounded = Math.round(
+      session.startHeight + (event.clientY - session.startY)
+    );
     onResize(
-      clampHeight(session.startHeight + (event.clientY - session.startY))
+      Math.min(Math.max(rounded, MIN_TARGET_HEIGHT_PX), session.boundsMax)
     );
   };
 
@@ -378,21 +609,48 @@ export default function TextareaResizeGrip({
     onResize(clampHeight(baseHeight + delta));
   };
 
+  // slider 播报值：锁定时取锁定高度，未锁定时取挂载后补测的回落 state；
+  // 再按 [valuemin, valuemax] 双向钳制——锁定高度经会话记忆恢复或窗口
+  // 缩小后可能超出当前播报上界，非有限锁定值已按未锁定回落处理，ARIA
+  // slider 规范要求 valuenow 落在 [valuemin, valuemax] 区间内。valuetext
+  // 与 valuenow 同源同钳，读屏播报口径一致。
+  const reportedHeight = Math.max(
+    MIN_TARGET_HEIGHT_PX,
+    Math.min(
+      Number.isFinite(value) ? Math.round(value) : fallbackHeight,
+      ariaValueMax
+    )
+  );
+
   return (
     <Box
-      role="separator"
-      aria-orientation="horizontal"
+      role="slider"
+      // kt-resize-grip：焦点指示为 m3.js 显式规则（B7）——鼠标 :focus
+      // 零指示，键盘 Tab 命中 :focus-visible 3px 主色环，不再静默依赖
+      // 全局级联（Shadow DOM 或全局规则调整不会丢失焦点环）。
+      className="kt-resize-grip"
+      // 手柄仅响应 clientY 与 ArrowUp/ArrowDown 调整高度，slider 方向
+      // 语义为 vertical（光标形态 cursor: "ns-resize" 同口径）。
+      aria-orientation="vertical"
       aria-label={label}
-      title={label}
+      title={unlockHint ? `${label}${unlockHint}` : label}
       tabIndex={0}
       aria-valuemin={MIN_TARGET_HEIGHT_PX}
-      aria-valuenow={typeof value === "number" ? Math.round(value) : undefined}
+      aria-valuemax={ariaValueMax}
+      aria-valuenow={reportedHeight}
+      aria-valuetext={`${reportedHeight}px`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={endSession}
       onPointerCancel={endSession}
       onLostPointerCapture={endSession}
       onKeyDown={handleKeyDown}
+      // 双击显式解锁（B3）：与拖拽单击互不干扰（dblclick 由两次 pointerup
+      // 之后的独立事件承载）；未传 onRelease 时为 no-op。
+      onDoubleClick={(event) => {
+        event.preventDefault();
+        onRelease?.();
+      }}
       sx={{
         position: "absolute",
         right: 0,
@@ -434,11 +692,6 @@ export default function TextareaResizeGrip({
             opacity: 1,
             transform: "scale(0.95)",
           },
-        },
-        "&:focus-visible": {
-          outline: "2px solid",
-          outlineColor: "var(--kt-pri)",
-          outlineOffset: "-2px",
         },
       }}
     >

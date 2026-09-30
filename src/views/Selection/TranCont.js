@@ -4,7 +4,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { apiTranslate } from "../../apis";
 import {
   API_SPE_TYPES,
@@ -18,6 +18,7 @@ import { BrowserTtsBtn } from "./AudioBtn";
 import TextareaResizeGrip from "../../components/TextareaResizeGrip";
 import useTextareaHeightLock, {
   useTextareaGripStyle,
+  useReleaseOnGripHidden,
 } from "../../hooks/useTextareaHeightLock";
 
 /**
@@ -173,12 +174,25 @@ export default function TranCont({
   const [attemptRevision, setAttemptRevision] = useState(requestRevision);
   const requestPendingRef = useRef(false);
   const gripStyle = useTextareaGripStyle();
-  const isNativeGrip = gripStyle === "firefox-native";
   const resultHeightLock = useTextareaHeightLock(
-    isPlayground ? "trancont-result-playground" : "trancont-result",
-    undefined,
-    isNativeGrip
+    // 键随 apiSlug 走：TranForm 以 key={slug} 并存多个结果实例，共享键
+    // 会让各实例互改写同一会话记忆；playground 为单实例，键保留。
+    isPlayground ? "trancont-result-playground" : `trancont-result:${apiSlug}`
   );
+  useReleaseOnGripHidden(gripStyle, resultHeightLock.releaseHeight);
+
+  // 内容清空 → 彻底解锁：清除会话高度记忆并还原 root，手柄随内容门控
+  // 消失；门控表达式的锁定分支保留（服务于「有内容且已锁」的存续态）。
+  // useLayoutEffect：空内容解锁须先于绘制，防重挂载首帧以记忆高度闪现。
+  // releaseHeight 为 useCallback([lockKey]) 产物（lockKey 不变则引用恒
+  // 定），经解构取稳定引用后进依赖数组——消除对 hook 返回对象整体的
+  // exhaustive-deps 告警形态（发布面：CRA 下 warning 即构建失败）。
+  const { releaseHeight: releaseResultHeight } = resultHeightLock;
+  useLayoutEffect(() => {
+    if (!trText.trim()) {
+      releaseResultHeight();
+    }
+  }, [trText, releaseResultHeight]);
 
   // Resolve the translation API settings for this instance's slug.
   const apiSetting = useMemo(
@@ -373,7 +387,7 @@ export default function TranCont({
         inputProps={{
           className: "kt-resizable-textarea",
           style: {
-            resize: isNativeGrip ? "vertical" : "none",
+            resize: gripStyle === "hidden" ? "vertical" : "none",
             ...(isPlayground
               ? {}
               : { boxSizing: "border-box", paddingInlineEnd: 16 }),
@@ -393,13 +407,11 @@ export default function TranCont({
           "& .MuiInputBase-root": {
             overflow: "visible",
           },
-          '& textarea:not([aria-hidden="true"])': {
-            resize: "none",
-          },
         }}
         value={trText}
         helperText={error}
         InputProps={{
+          ...resultHeightLock.rootProps,
           readOnly: true,
           startAdornment: (
             <Box
@@ -450,16 +462,17 @@ export default function TranCont({
                 title={i18n("read_aloud")}
               />
             </Stack>
-            {!isNativeGrip &&
-              (trText.trim() || resultHeightLock.lockedHeight != null) && (
-                <TextareaResizeGrip
-                  target={resultHeightLock.textareaRef}
-                  onResize={resultHeightLock.applyHeight}
-                  value={resultHeightLock.lockedHeight}
-                  label={i18n("field_resize_height")}
-                  variant={gripStyle}
-                />
-              )}
+            {(trText.trim() || resultHeightLock.lockedHeight != null) && (
+              <TextareaResizeGrip
+                target={resultHeightLock.textareaRef}
+                onResize={resultHeightLock.applyHeight}
+                value={resultHeightLock.lockedHeight}
+                label={i18n("field_resize_height")}
+                variant={gripStyle}
+                onRelease={resultHeightLock.releaseHeight}
+                unlockHint={i18n("field_resize_unlock_hint")}
+              />
+            )}
             </>
           ),
         }}

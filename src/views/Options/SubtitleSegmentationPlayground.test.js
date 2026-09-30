@@ -8,6 +8,7 @@ import SubtitleSegmentationPlayground from "./SubtitleSegmentationPlayground";
 import { handleSubtitle } from "../../apis/trans";
 import { I18N, UI_LANGS } from "../../config/i18n";
 import { downloadBlobFile } from "../../libs/utils";
+import { __resetSessionHeightMapForTests } from "../../hooks/useTextareaHeightLock";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const mockConfirm = jest.fn(() => Promise.resolve(true));
@@ -35,7 +36,7 @@ jest.mock("../../libs/utils", () => {
 });
 
 // 手柄样式：部分 mock（requireActual 保留真实默认导出），只替换
-// useTextareaGripStyle 驱动 firefox-native / upstream-chrome 行为。
+// useTextareaGripStyle 驱动自绘样式行为。
 // 同时最小 mock ./Setting：斩断 requireActual(真实 hook) → ./Setting → Storage →
 // apis → query-string(ESM) 的未转译链；真实默认导出不调用 useSetting，零影响。
 jest.mock("../../hooks/Setting", () => ({
@@ -181,7 +182,7 @@ describe("SubtitleSegmentationPlayground", () => {
 
     // 内容门控（空内容 → 不在场）：上传样本前源/结果框均为空。
     expect(
-      container.querySelector('.MuiInputBase-root [role="separator"]')
+      container.querySelector('.MuiInputBase-root [role="slider"]')
     ).toBeNull();
 
     expect(global.fetch).toHaveBeenCalledWith(
@@ -251,12 +252,12 @@ describe("SubtitleSegmentationPlayground", () => {
     // 内容门控（有内容 → 在场）：上传样本并运行后源/结果框均有内容。
     const sourceGrip = sourceArea
       .closest(".MuiInputBase-root")
-      .querySelector('[role="separator"]');
+      .querySelector('[role="slider"]');
     expect(sourceGrip).not.toBeNull();
     expect(
       resultArea
         .closest(".MuiInputBase-root")
-        .querySelector('[role="separator"]')
+        .querySelector('[role="slider"]')
     ).not.toBeNull();
     act(() => {
       sourceGrip.dispatchEvent(
@@ -294,6 +295,58 @@ describe("SubtitleSegmentationPlayground", () => {
       expect.stringContaining("WEBVTT"),
       expect.stringMatching(/^sample-rule-.*\.vtt$/)
     );
+
+    act(() => root.unmount());
+  });
+
+  test("clearing the result on source language change releases the locked height", async () => {
+    __resetSessionHeightMapForTests();
+    const { container, root } = renderPlayground();
+    await flushEffects();
+
+    const input = container.querySelector('input[type="file"]');
+    const file = new File([source], "sample.json", {
+      type: "application/json",
+    });
+    Object.defineProperty(file, "text", { value: async () => source });
+    Object.defineProperty(input, "files", { value: [file] });
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await selectSourceLanguage(container, "en");
+    const runButton = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent.includes("运行测试")
+    );
+    await act(async () => {
+      runButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const sourceRoot = container
+      .querySelector('textarea[aria-label="原始字幕 JSON"]')
+      .closest(".MuiInputBase-root");
+    const resultRoot = container
+      .querySelector('textarea[aria-label="断句结果"]')
+      .closest(".MuiInputBase-root");
+    for (const gripRoot of [sourceRoot, resultRoot]) {
+      const grip = gripRoot.querySelector('[role="slider"]');
+      expect(grip).not.toBeNull();
+      act(() => {
+        grip.dispatchEvent(
+          new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" })
+        );
+      });
+      expect(gripRoot.classList).toContain("kt-height-locked");
+    }
+
+    // 切换源语言 → 旧结果清空（setResult(null)）→ 结果框彻底解锁；
+    // 源框内容未变，其锁定不受影响（对照断言）。
+    await selectSourceLanguage(container, "zh-CN");
+    expect(resultRoot.querySelector('[role="slider"]')).toBeNull();
+    expect(resultRoot.classList).not.toContain("kt-height-locked");
+    expect(resultRoot.style.height).toBe("");
+    expect(sourceRoot.classList).toContain("kt-height-locked");
 
     act(() => root.unmount());
   });
@@ -523,31 +576,7 @@ describe("SubtitleSegmentationPlayground textarea grip style", () => {
     mockUseTextareaGripStyle.mockReturnValue("concentric-smooth");
   });
 
-  test("firefox-native drops the grip and clears the resize none !important branch", async () => {
-    mockUseTextareaGripStyle.mockReturnValue("firefox-native");
-    const { container, root, cache, emotionCss } = renderGripPlayground(
-      "subtitle-grip-native"
-    );
-    await flushEffects();
-    await uploadSource(container);
-
-    const sourceArea = container.querySelector(
-      'textarea[aria-label="原始字幕 JSON"]'
-    );
-    // 内容门控已满足（上传后源框非空），原生模式仍不渲染 separator。
-    expect(sourceArea.value).not.toBe("");
-    expect(
-      sourceArea.closest(".MuiInputBase-root").querySelector('[role="separator"]')
-    ).toBeNull();
-    // RESIZABLE_TEXT_FIELD_SX 条件化：firefox-native 下不再输出 none !important。
-    expect(emotionCss()).not.toContain("resize:none!important");
-    // 恒定附加契约：类仍在场。
-    expect(sourceArea.classList.contains("kt-resizable-textarea")).toBe(true);
-    await act(async () => root.unmount());
-    cache.sheet.flush();
-  });
-
-  test("non-native keeps the resize none !important branch and renders the grip", async () => {
+  test("keeps the resize none !important branch and renders the grip", async () => {
     mockUseTextareaGripStyle.mockReturnValue("concentric-smooth");
     const { container, root, cache, emotionCss } = renderGripPlayground(
       "subtitle-grip-default"
@@ -560,11 +589,86 @@ describe("SubtitleSegmentationPlayground textarea grip style", () => {
     );
     const grip = sourceArea
       .closest(".MuiInputBase-root")
-      .querySelector('[role="separator"]');
+      .querySelector('[role="slider"]');
     expect(grip).not.toBeNull();
     // 非原生分支：RESIZABLE_TEXT_FIELD_SX 仍压制 resize。
     expect(emotionCss()).toContain("resize:none!important");
     await act(async () => root.unmount());
     cache.sheet.flush();
+  });
+
+  // B1：hidden = 不渲染手柄 + textarea 原生 resize 回退。sx 的 !important
+  // 压制必须随 gripStyle 三元翻转（红：现实现 resize none!important 压死
+  // 原生回退且渲染空图形手柄——不可见却可拖是隐蔽交互面）。
+  test("hidden variant renders no grip and restores native resize", async () => {
+    mockUseTextareaGripStyle.mockReturnValue("hidden");
+    const { container, root, cache, emotionCss } = renderGripPlayground(
+      "subtitle-grip-hidden"
+    );
+    await flushEffects();
+    await uploadSource(container);
+
+    const sourceArea = container.querySelector(
+      'textarea[aria-label="原始字幕 JSON"]'
+    );
+    expect(sourceArea.style.resize).toBe("vertical");
+    expect(
+      sourceArea.closest(".MuiInputBase-root").querySelector('[role="slider"]')
+    ).toBeNull();
+    await act(async () => root.unmount());
+    cache.sheet.flush();
+  });
+
+  // 意见 A：grip 样式切到 hidden 时自动释放会话高度锁——锁定类与内联
+  // 高度一并撤销，字段不被 kt-height-locked 永久钉死（红：现实现残留锁类）。
+  test("switching to hidden releases the session height lock", async () => {
+    mockUseTextareaGripStyle.mockReturnValue("concentric-smooth");
+    __resetSessionHeightMapForTests();
+    const cache = createCache({ key: "subtitle-grip-release", speedy: false });
+    // 每次渲染新建元素：复用同一元素对象会被 React 判等跳过提交，
+    // gripStyle 切换不会生效。
+    const makeElement = () => (
+      <CacheProvider value={cache}>
+        <SubtitleSegmentationPlayground
+          subtitleSetting={{
+            segSlug: "-",
+            useAlgorithmBreaker: "rule",
+            longSentenceThreshold: 120,
+            toLang: "zh-CN",
+          }}
+          transApis={[]}
+          prompts={[]}
+        />
+      </CacheProvider>
+    );
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => root.render(makeElement()));
+    await flushEffects();
+    await uploadSource(container);
+
+    const sourceArea = container.querySelector(
+      'textarea[aria-label="原始字幕 JSON"]'
+    );
+    const fieldRoot = sourceArea.closest(".MuiInputBase-root");
+    // 真实交互路径造锁：手柄键盘调高（与既有造锁口径一致）。
+    const grip = fieldRoot.querySelector('[role="slider"]');
+    expect(grip).not.toBeNull();
+    await act(async () => {
+      grip.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" })
+      );
+    });
+    expect(fieldRoot.classList).toContain("kt-height-locked");
+
+    mockUseTextareaGripStyle.mockReturnValue("hidden");
+    await act(async () => root.render(makeElement()));
+    expect(fieldRoot.classList).not.toContain("kt-height-locked");
+    expect(fieldRoot.style.height).toBe("");
+
+    await act(async () => root.unmount());
+    cache.sheet.flush();
+    __resetSessionHeightMapForTests();
   });
 });

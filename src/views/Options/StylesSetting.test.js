@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { css as mockCss } from "@emotion/css";
 import StylesSetting, { StyleAccordion } from "./StylesSetting";
+import { TEXTAREA_GRIP_STYLE_KEYS } from "../../components/TextareaResizeGrip";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -319,11 +320,24 @@ describe("StylesSetting textarea grip section", () => {
     document.body.innerHTML = "";
   });
 
-  test("renders the grip section select with exactly 16 options", async () => {
+  test("renders the grip section select with exactly 14 options", async () => {
     const view = renderGripSection();
     await openGripSelect(view.container);
     const options = document.body.querySelectorAll('[role="option"]');
-    expect(options).toHaveLength(16);
+    expect(options).toHaveLength(14);
+    await act(async () => view.root.unmount());
+    view.container.remove();
+  });
+
+  test("keeps the grip option value set identical to the grip registry keys", async () => {
+    // 单源护栏：下拉选项 value 集合必须逐项等于注册表 key 集合（含
+    // hidden）。注册表或选项数组单侧漂移时本断言必红，消除人工双写。
+    const view = renderGripSection();
+    await openGripSelect(view.container);
+    const optionValues = [
+      ...document.body.querySelectorAll('[role="option"]'),
+    ].map((option) => option.getAttribute("data-value"));
+    expect(optionValues).toEqual([...TEXTAREA_GRIP_STYLE_KEYS]);
     await act(async () => view.root.unmount());
     view.container.remove();
   });
@@ -333,41 +347,32 @@ describe("StylesSetting textarea grip section", () => {
     await openGripSelect(view.container);
     await act(async () => {
       [...document.body.querySelectorAll('[role="option"]')]
-        .find((option) => option.getAttribute("data-value") === "upstream-chrome")
+        .find((option) => option.getAttribute("data-value") === "corner-pill")
         .dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
     // SettingsSelect onChange 契约：收到的是解包字符串，非 event 对象。
     expect(mockUpdateSetting).toHaveBeenCalledWith({
-      textareaGripStyle: "upstream-chrome",
+      textareaGripStyle: "corner-pill",
     });
     await act(async () => view.root.unmount());
     view.container.remove();
   });
 
-  test("previews the real grip component and follows the live variant", async () => {
+  test("embeds a grip glyph in every grip style option", async () => {
     const view = renderGripSection();
+    await openGripSelect(view.container);
+    const options = [...document.body.querySelectorAll('[role="option"]')];
+    expect(options).toHaveLength(14);
 
-    // 默认 concentric-smooth：预览复用真实组件（role=separator 在场 + 双弧）。
-    let separator = view.container.querySelector('[role="separator"]');
-    expect(separator).not.toBeNull();
-    expect(separator.querySelectorAll("svg path")).toHaveLength(2);
-
-    // 切到 upstream-chrome：同一 separator 内 SVG 随 variant 变为单条斜杠。
-    mockSetting.textareaGripStyle = "upstream-chrome";
-    view.rerender();
-    separator = view.container.querySelector('[role="separator"]');
-    expect(separator).not.toBeNull();
-    expect(separator.querySelector("svg path").getAttribute("d")).toBe(
-      "M15 3L3 15h2.5L15 5.5V3zM15 8L8 15h2.5l4.5-4.5V8zM15 13l-2 2h2v-2z"
-    );
-
-    // 切到 firefox-native：separator 消失，预览 textarea 放开原生纵向 resize。
-    mockSetting.textareaGripStyle = "firefox-native";
-    view.rerender();
-    expect(view.container.querySelector('[role="separator"]')).toBeNull();
-    const previewTextarea = view.container.querySelector("textarea");
-    expect(previewTextarea.style.resize).toBe("vertical");
+    // 每个样式项内嵌纯展示 svg（18×18 viewBox、aria-hidden）；hidden 项的
+    // svg 为空占位（无图形子元素）。
+    options.forEach((option) => {
+      const svg = option.querySelector("svg");
+      expect(svg).not.toBeNull();
+      expect(svg.getAttribute("viewBox")).toBe("0 0 18 18");
+      expect(svg.getAttribute("aria-hidden")).toBe("true");
+    });
 
     await act(async () => view.root.unmount());
     view.container.remove();

@@ -578,10 +578,10 @@ describe("TranForm Playground presentation", () => {
         expect(getComputedStyle(textarea).resize).toBe("none");
         const fieldRoot = textarea.closest(".MuiInputBase-root");
         // 内容门控（有内容 → 在场）：初始文本 "before" 非空。
-        const grip = fieldRoot.querySelector('[role="separator"]');
+        const grip = fieldRoot.querySelector('[role="slider"]');
         expect(grip).not.toBeNull();
         expect(grip.getAttribute("aria-label")).toBe("field_resize_height");
-        expect(grip.getAttribute("aria-orientation")).toBe("horizontal");
+        expect(grip.getAttribute("aria-orientation")).toBe("vertical");
         // 清空内容 → 手柄不在场；回填 → 重新在场（原生 value setter 先例：
         // TranForm.test.js 900-907）。
         const setTextareaValue = Object.getOwnPropertyDescriptor(
@@ -592,21 +592,36 @@ describe("TranForm Playground presentation", () => {
           setTextareaValue.call(textarea, "");
           textarea.dispatchEvent(new Event("input", { bubbles: true }));
         });
-        expect(fieldRoot.querySelector('[role="separator"]')).toBeNull();
+        expect(fieldRoot.querySelector('[role="slider"]')).toBeNull();
         act(() => {
           setTextareaValue.call(textarea, "before");
           textarea.dispatchEvent(new Event("input", { bubbles: true }));
         });
-        expect(fieldRoot.querySelector('[role="separator"]')).not.toBeNull();
+        expect(fieldRoot.querySelector('[role="slider"]')).not.toBeNull();
         act(() => {
           fieldRoot
-            .querySelector('[role="separator"]')
+            .querySelector('[role="slider"]')
             .dispatchEvent(
               new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" })
             );
         });
         expect(fieldRoot.classList).toContain("kt-height-locked");
         expect(fieldRoot.style.height).toBe("40px");
+        // 锁定后清空内容 → 彻底解锁：手柄消失、root 还原；回填 → 手柄
+        // 重新在场且高度从默认重新开始（会话记忆已被清除）。
+        act(() => {
+          setTextareaValue.call(textarea, "");
+          textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        expect(fieldRoot.querySelector('[role="slider"]')).toBeNull();
+        expect(fieldRoot.classList).not.toContain("kt-height-locked");
+        expect(fieldRoot.style.height).toBe("");
+        act(() => {
+          setTextareaValue.call(textarea, "before");
+          textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        expect(fieldRoot.querySelector('[role="slider"]')).not.toBeNull();
+        expect(fieldRoot.classList).not.toContain("kt-height-locked");
 
         for (const [index, draft] of ["  after  ", "  again  "].entries()) {
           // Use native focus: a still-focused input cannot emit another focus event.
@@ -1754,36 +1769,62 @@ describe("TranForm textarea grip style", () => {
     document.body.innerHTML = "";
   });
 
-  test("firefox-native drops the grip, unlocks native resize and keeps the class", () => {
-    mockUseTextareaGripStyle.mockReturnValue("firefox-native");
+  test("corner-pill renders the grip with the selected variant and locks resize", () => {
+    mockUseTextareaGripStyle.mockReturnValue("corner-pill");
     const { container, root } = renderTranForm({
       text: "library",
       simpleStyle: false,
     });
     const textarea = container.querySelector("textarea");
     const fieldRoot = textarea.closest(".MuiInputBase-root");
-    // 内容门控已满足（editText="library" 非空），原生模式仍不渲染 separator。
-    expect(fieldRoot.querySelector('[role="separator"]')).toBeNull();
-    expect(getComputedStyle(textarea).resize).toBe("vertical");
-    expect(textarea.classList.contains("kt-resizable-textarea")).toBe(true);
-    expect(textarea.closest(".kt-height-locked")).toBeNull();
-    act(() => root.unmount());
-  });
-
-  test("upstream-chrome renders the grip with the slashed variant and locks resize", () => {
-    mockUseTextareaGripStyle.mockReturnValue("upstream-chrome");
-    const { container, root } = renderTranForm({
-      text: "library",
-      simpleStyle: false,
-    });
-    const textarea = container.querySelector("textarea");
-    const fieldRoot = textarea.closest(".MuiInputBase-root");
-    const grip = fieldRoot.querySelector('[role="separator"]');
+    const grip = fieldRoot.querySelector('[role="slider"]');
     expect(grip).not.toBeNull();
     expect(getComputedStyle(textarea).resize).toBe("none");
     expect(grip.querySelector("svg path").getAttribute("d")).toBe(
-      "M15 3L3 15h2.5L15 5.5V3zM15 8L8 15h2.5l4.5-4.5V8zM15 13l-2 2h2v-2z"
+      "M14 6V9.5C14 11.985 11.985 14 9.5 14H6"
     );
+    act(() => root.unmount());
+  });
+
+  // B1：hidden = 完全不渲染手柄 + textarea 原生 resize 回退（红：现实现
+  // 渲染空图形手柄且 resize 压成 none）。
+  test("hidden variant renders no grip and restores native resize", () => {
+    mockUseTextareaGripStyle.mockReturnValue("hidden");
+    const { container, root } = renderTranForm({
+      text: "library",
+      simpleStyle: false,
+    });
+    const textarea = container.querySelector("textarea");
+    expect(textarea.style.resize).toBe("vertical");
+    expect(
+      textarea.closest(".MuiInputBase-root").querySelector('[role="slider"]')
+    ).toBeNull();
+    act(() => root.unmount());
+  });
+
+  // 意见 A：grip 样式切到 hidden 时自动释放会话高度锁（红：现实现残留
+  // kt-height-locked 与内联高度，字段被永久钉死）。
+  test("switching to hidden releases the session height lock", () => {
+    mockUseTextareaGripStyle.mockReturnValue("concentric-smooth");
+    const { container, root, rerender } = renderTranForm({
+      text: "library",
+      simpleStyle: false,
+    });
+    const textarea = container.querySelector("textarea");
+    const fieldRoot = textarea.closest(".MuiInputBase-root");
+    const grip = fieldRoot.querySelector('[role="slider"]');
+    expect(grip).not.toBeNull();
+    act(() => {
+      grip.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" })
+      );
+    });
+    expect(fieldRoot.classList).toContain("kt-height-locked");
+
+    mockUseTextareaGripStyle.mockReturnValue("hidden");
+    rerender({});
+    expect(fieldRoot.classList).not.toContain("kt-height-locked");
+    expect(fieldRoot.style.height).toBe("");
     act(() => root.unmount());
   });
 });

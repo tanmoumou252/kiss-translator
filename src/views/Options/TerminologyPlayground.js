@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -47,6 +47,7 @@ import { useI18n } from "../../hooks/I18n";
 import TextareaResizeGrip from "../../components/TextareaResizeGrip";
 import useTextareaHeightLock, {
   useTextareaGripStyle,
+  useReleaseOnGripHidden,
 } from "../../hooks/useTextareaHeightLock";
 import { useRules } from "../../hooks/Rules";
 import { useSetting } from "../../hooks/Setting";
@@ -1658,17 +1659,30 @@ export default function TerminologyPlayground({
   // 两个术语输入框：锁定高度承载在 InputBase root 上（与其他消费者同构），
   // 手柄按内容门控条件渲染（内容非空或已锁定高度才在场）。
   const gripStyle = useTextareaGripStyle();
-  const isNativeGrip = gripStyle === "firefox-native";
-  const termsHeightLock = useTextareaHeightLock(
-    "terminology-terms",
-    undefined,
-    isNativeGrip
-  );
-  const aiTermsHeightLock = useTextareaHeightLock(
-    "terminology-ai-terms",
-    undefined,
-    isNativeGrip
-  );
+  const termsHeightLock = useTextareaHeightLock("terminology-terms");
+  const aiTermsHeightLock = useTextareaHeightLock("terminology-ai-terms");
+  useReleaseOnGripHidden(gripStyle, termsHeightLock.releaseHeight);
+  useReleaseOnGripHidden(gripStyle, aiTermsHeightLock.releaseHeight);
+
+  // 内容清空 → 彻底解锁：清除会话高度记忆并还原 root，手柄随内容门控
+  // 消失；门控表达式的锁定分支保留（服务于「有内容且已锁」的存续态）。
+  // useLayoutEffect：空内容解锁须先于绘制，防重挂载首帧以记忆高度闪现
+  // （本端路径因草稿持久化实际不可达，按 5 端对称性防御性统一）。
+  // releaseHeight 为 useCallback([lockKey]) 产物（lockKey 不变则引用恒
+  // 定），经解构取稳定引用后进依赖数组——消除对 hook 返回对象整体的
+  // exhaustive-deps 告警形态（发布面：CRA 下 warning 即构建失败）。
+  const { releaseHeight: releaseTermsHeight } = termsHeightLock;
+  const { releaseHeight: releaseAiTermsHeight } = aiTermsHeightLock;
+  useLayoutEffect(() => {
+    if (!(termsDraft || "").trim()) {
+      releaseTermsHeight();
+    }
+  }, [termsDraft, releaseTermsHeight]);
+  useLayoutEffect(() => {
+    if (!(aiTermsDraft || "").trim()) {
+      releaseAiTermsHeight();
+    }
+  }, [aiTermsDraft, releaseAiTermsHeight]);
   // AI 术语例句轮换 seed（与本地术语区 termSeed 语义一致："" = 缺省确定性行为，递增轮换）。
   const [aiTermSeed, setAiTermSeed] = useState("");
 
@@ -1939,28 +1953,27 @@ export default function TerminologyPlayground({
           inputProps={{
             className: "kt-resizable-textarea",
             "aria-describedby": "terminology-terms-helper",
-            style: { resize: isNativeGrip ? "vertical" : "none" },
+            style: { resize: gripStyle === "hidden" ? "vertical" : "none" },
           }}
           InputProps={{
+            ...termsHeightLock.rootProps,
             endAdornment:
-              !isNativeGrip &&
-              ((termsDraft || "").trim() ||
-                termsHeightLock.lockedHeight != null) ? (
+              (termsDraft || "").trim() ||
+              termsHeightLock.lockedHeight != null ? (
                 <TextareaResizeGrip
                   target={termsHeightLock.textareaRef}
                   onResize={termsHeightLock.applyHeight}
                   value={termsHeightLock.lockedHeight}
                   label={i18n("field_resize_height")}
                   variant={gripStyle}
+                  onRelease={termsHeightLock.releaseHeight}
+                  unlockHint={i18n("field_resize_unlock_hint")}
                 />
               ) : null,
           }}
           sx={{
             "& .MuiInputBase-root": {
               overflow: "visible",
-            },
-            '& textarea:not([aria-hidden="true"])': {
-              resize: "none",
             },
           }}
           data-testid="terminology-terms-input"
@@ -2232,19 +2245,21 @@ export default function TerminologyPlayground({
           inputProps={{
             className: "kt-resizable-textarea",
             "aria-describedby": "terminology-ai-terms-helper",
-            style: { resize: isNativeGrip ? "vertical" : "none" },
+            style: { resize: gripStyle === "hidden" ? "vertical" : "none" },
           }}
           InputProps={{
+            ...aiTermsHeightLock.rootProps,
             endAdornment:
-              !isNativeGrip &&
-              ((aiTermsDraft || "").trim() ||
-                aiTermsHeightLock.lockedHeight != null) ? (
+              (aiTermsDraft || "").trim() ||
+              aiTermsHeightLock.lockedHeight != null ? (
                 <TextareaResizeGrip
                   target={aiTermsHeightLock.textareaRef}
                   onResize={aiTermsHeightLock.applyHeight}
                   value={aiTermsHeightLock.lockedHeight}
                   label={i18n("field_resize_height")}
                   variant={gripStyle}
+                  onRelease={aiTermsHeightLock.releaseHeight}
+                  unlockHint={i18n("field_resize_unlock_hint")}
                 />
               ) : null,
           }}
@@ -2252,9 +2267,6 @@ export default function TerminologyPlayground({
             mt: 2,
             "& .MuiInputBase-root": {
               overflow: "visible",
-            },
-            '& textarea:not([aria-hidden="true"])': {
-              resize: "none",
             },
           }}
           data-testid="terminology-ai-terms-input"

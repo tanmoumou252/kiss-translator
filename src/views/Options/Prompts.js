@@ -53,6 +53,7 @@ import CodeField from "./CodeField";
 import TextareaResizeGrip from "../../components/TextareaResizeGrip";
 import useTextareaHeightLock, {
   useTextareaGripStyle,
+  useReleaseOnGripHidden,
 } from "../../hooks/useTextareaHeightLock";
 
 const TRANSLATION_PROMPT_PLACEHOLDERS = [
@@ -214,17 +215,37 @@ function PromptFields({
   const systemPromptRef = useRef(null);
   const userPromptRef = useRef(null);
   const gripStyle = useTextareaGripStyle();
-  const isNativeGrip = gripStyle === "firefox-native";
+  // 键随提示词 slug 走：不同提示词互不串用会话高度记忆；normalizePrompt
+  // 保证 slug 为字符串，空串与缺省一律回落 draft。
   const systemHeightLock = useTextareaHeightLock(
-    "options-prompt-system",
-    systemPromptRef,
-    isNativeGrip
+    `options-prompt-system:${formData.slug || "draft"}`,
+    systemPromptRef
   );
   const userHeightLock = useTextareaHeightLock(
-    "options-prompt-user",
-    userPromptRef,
-    isNativeGrip
+    `options-prompt-user:${formData.slug || "draft"}`,
+    userPromptRef
   );
+  useReleaseOnGripHidden(gripStyle, systemHeightLock.releaseHeight);
+  useReleaseOnGripHidden(gripStyle, userHeightLock.releaseHeight);
+
+  // 内容清空 → 彻底解锁：清除会话高度记忆并还原 root，手柄随内容门控
+  // 消失；门控表达式的锁定分支保留（服务于「有内容且已锁」的存续态）。
+  // useLayoutEffect：空内容解锁须先于绘制，防重挂载首帧以记忆高度闪现。
+  // releaseHeight 为 useCallback([lockKey]) 产物（lockKey 不变则引用恒
+  // 定），经解构取稳定引用后进依赖数组——消除对 hook 返回对象整体的
+  // exhaustive-deps 告警形态（发布面：CRA 下 warning 即构建失败）。
+  const { releaseHeight: releaseSystemHeight } = systemHeightLock;
+  const { releaseHeight: releaseUserHeight } = userHeightLock;
+  useLayoutEffect(() => {
+    if (!(formData.systemPrompt || "").trim()) {
+      releaseSystemHeight();
+    }
+  }, [formData.systemPrompt, releaseSystemHeight]);
+  useLayoutEffect(() => {
+    if (!(formData.userPrompt || "").trim()) {
+      releaseUserHeight();
+    }
+  }, [formData.userPrompt, releaseUserHeight]);
   // Only show the second prompt for flows that consume userPrompt.
   const showUserPrompt =
     formData.category === PROMPT_CATEGORY_USER ||
@@ -329,29 +350,28 @@ function PromptFields({
           maxRows={14}
           disabled={isPreset}
           InputProps={{
+            ...systemHeightLock.rootProps,
             endAdornment:
-              !isNativeGrip &&
-              (formData.systemPrompt.trim() ||
-                systemHeightLock.lockedHeight != null) ? (
+              formData.systemPrompt.trim() ||
+              systemHeightLock.lockedHeight != null ? (
                 <TextareaResizeGrip
                   target={systemHeightLock.textareaRef}
                   onResize={systemHeightLock.applyHeight}
                   value={systemHeightLock.lockedHeight}
                   label={i18n("field_resize_height")}
                   variant={gripStyle}
+                  onRelease={systemHeightLock.releaseHeight}
+                  unlockHint={i18n("field_resize_unlock_hint")}
                 />
               ) : null,
           }}
           inputProps={{
             className: "kt-resizable-textarea",
-            style: { resize: isNativeGrip ? "vertical" : "none" },
+              style: { resize: gripStyle === "hidden" ? "vertical" : "none" },
           }}
           sx={{
             "& .MuiInputBase-root": {
               overflow: "visible",
-            },
-            '& textarea:not([aria-hidden="true"])': {
-              resize: "none",
             },
           }}
         />
@@ -383,29 +403,28 @@ function PromptFields({
             maxRows={14}
             disabled={isPreset}
             InputProps={{
+              ...userHeightLock.rootProps,
               endAdornment:
-                !isNativeGrip &&
-                (formData.userPrompt.trim() ||
-                  userHeightLock.lockedHeight != null) ? (
+                formData.userPrompt.trim() ||
+                userHeightLock.lockedHeight != null ? (
                   <TextareaResizeGrip
                     target={userHeightLock.textareaRef}
                     onResize={userHeightLock.applyHeight}
                     value={userHeightLock.lockedHeight}
                     label={i18n("field_resize_height")}
                     variant={gripStyle}
+                    onRelease={userHeightLock.releaseHeight}
+                    unlockHint={i18n("field_resize_unlock_hint")}
                   />
                 ) : null,
             }}
             inputProps={{
               className: "kt-resizable-textarea",
-              style: { resize: isNativeGrip ? "vertical" : "none" },
+              style: { resize: gripStyle === "hidden" ? "vertical" : "none" },
             }}
             sx={{
               "& .MuiInputBase-root": {
                 overflow: "visible",
-              },
-              '& textarea:not([aria-hidden="true"])': {
-                resize: "none",
               },
             }}
           />

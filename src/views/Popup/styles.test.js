@@ -221,4 +221,77 @@ describe("separate translation window layout", () => {
     expect(windowShellRule).toContain("min-height: 100dvh");
     expect(windowShellRule).not.toContain("min-height: 100vh");
   });
+
+  test("leaves the result textarea resize behavior to TranCont inline styles", () => {
+    // 意见 B：窗口模式 CSS 不得压制 hidden 态原生 resize——
+    // resize:none 与 height:auto !important 均须移除，由内联样式全态接管。
+    const textareaRule = POPUP_STYLES.match(
+      /\.kt-popup-shell--window \.kt-translation-result textarea:not\(\[aria-hidden="true"\]\)\s*\{([^}]*)\}/
+    )?.[1];
+    expect(textareaRule).toBeDefined();
+    expect(textareaRule).not.toMatch(/resize\s*:/);
+    expect(textareaRule).not.toMatch(/height:\s*auto\s*!important/);
+    // 保留布局声明：flex/min-height 承载窗口拉伸，overflow-y 维持滚动语义。
+    expect(textareaRule).toContain("flex: 1");
+    expect(textareaRule).toContain("min-height: 140px");
+    expect(textareaRule).toContain("overflow-y: auto !important");
+  });
+});
+
+// 未锁定 + 非 hidden 手柄态下，结果 textarea 无任何内联高度（TranCont
+// 内联仅接管 resize，锁定态高度由 useTextareaHeightLock 的 rootProps 承
+// 载），窗口模式的高度唯一来源是本文件布局链。此处逐跳锁死链路，防止
+// 任一 flex/min-height 声明被误删后未锁定态塌成内容高度。
+describe("popup window result textarea flex chain", () => {
+  test("stretches the unlocked result textarea via an unbroken flex chain", () => {
+    const panelRule = POPUP_STYLES.match(
+      /\.kt-popup-shell--window \.kt-popup-text-panel\s*\{([^}]*)\}/
+    )?.[1];
+    expect(panelRule).toContain("display: flex");
+    expect(panelRule).toContain("flex-direction: column");
+    expect(panelRule).toContain("min-height: 100dvh");
+
+    const resultRule = POPUP_STYLES.match(
+      /\.kt-popup-shell--window \.kt-translation-result\s*\{([^}]*)\}/
+    )?.[1];
+    expect(resultRule).toContain("flex: 1");
+    expect(resultRule).toContain("display: flex");
+    expect(resultRule).toContain("flex-direction: column");
+    expect(resultRule).toContain("min-height: 180px");
+
+    // flexRule 以联合选择器前缀（> .MuiFormControl-root）锚定 styles.js
+    // 中 `.MuiInputBase-root { flex: 1; }` 这条规则；`align-items: stretch`
+    // 是其后的另一条独立规则，须单独匹配断言，不能复用同一条捕获。
+    const flexRule = POPUP_STYLES.match(
+      /\.kt-translation-result > \.MuiFormControl-root,\s*\.kt-popup-shell--window \.kt-translation-result \.MuiInputBase-root\s*\{([^}]*)\}/
+    )?.[1];
+    expect(flexRule).toContain("flex: 1");
+
+    // align-items: stretch 与 flexRule 是两条独立规则（联合规则的第二个
+    // 成员选择器与本正则前缀同形，单次 match 会先命中联合规则体），
+    // matchAll 收集全部同名选择器规则体后以 some 断言，免除排版格式依赖。
+    const inputBaseBodies = [
+      ...POPUP_STYLES.matchAll(
+        /\.kt-popup-shell--window \.kt-translation-result \.MuiInputBase-root\s*\{([^}]*)\}/g
+      ),
+    ].map((m) => m[1]);
+    expect(
+      inputBaseBodies.some((body) => body.includes("align-items: stretch"))
+    ).toBe(true);
+
+    const textareaRule = POPUP_STYLES.match(
+      /\.kt-popup-shell--window \.kt-translation-result textarea:not\(\[aria-hidden="true"\]\)\s*\{([^}]*)\}/
+    )?.[1];
+    expect(textareaRule).toContain("flex: 1");
+    expect(textareaRule).toContain("min-height: 140px");
+  });
+
+  test("never reintroduces a css height or resize override on the result textarea", () => {
+    const textareaRule = POPUP_STYLES.match(
+      /\.kt-popup-shell--window \.kt-translation-result textarea:not\(\[aria-hidden="true"\]\)\s*\{([^}]*)\}/
+    )?.[1];
+    expect(textareaRule).toBeDefined();
+    expect(textareaRule).not.toMatch(/(?:^|[^-])height\s*:/);
+    expect(textareaRule).not.toMatch(/resize\s*:/);
+  });
 });
