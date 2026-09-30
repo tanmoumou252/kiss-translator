@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import Box from "@mui/material/Box";
 import TextareaResizeGrip, {
   GripGlyph,
+  getGripRegistryKeys,
   resolveGripStyle,
 } from "./TextareaResizeGrip";
 import { TEXTAREA_GRIP_STYLE_KEYS } from "../config/textareaGripStyles";
@@ -618,13 +619,23 @@ describe("TextareaResizeGrip", () => {
     await act(async () => root.unmount());
   });
 
-  test("keeps the shared constant key list resolvable by the grip registry", () => {
-    // 单一事实源自检：常量清单逐键必须被注册表自有属性命中（resolveGripStyle
-    // 回落口径即返回原键）；清单多写、改名或删键时本断言必红。
+  test("keeps the shared constant key list and the grip registry in lockstep", () => {
+    // 单一事实源双向对账：
+    //  正向——清单逐键必须被注册表自有属性命中（清单多写/改名时必红）；
+    //  反向——注册表键序（含顺序）必须与清单恒等（注册表新增/删除/改名/
+    //  调序而漏同步清单时必红，含 concentric-smooth 被删时正向回落值恰
+    //  等于期望值而漏判的盲点）。
     for (const key of TEXTAREA_GRIP_STYLE_KEYS) {
       expect(resolveGripStyle(key)).toBe(key);
     }
     expect(TEXTAREA_GRIP_STYLE_KEYS).toContain("hidden");
+    // 判红能力常驻自检：同长度、异内容的变异序列必须判不等（等长换名，
+    // 避免 StylesSetting.test.js 近恒真自检的长度差退化形态）。
+    const registryKeys = getGripRegistryKeys();
+    expect([...registryKeys.slice(0, 13), "not-a-registry-key"]).not.toEqual([
+      ...TEXTAREA_GRIP_STYLE_KEYS,
+    ]);
+    expect(registryKeys).toEqual([...TEXTAREA_GRIP_STYLE_KEYS]);
   });
 
   // 会话窗口 Escape 阻断：pointerdown 已建立会话但尚未 move 时 onResize
@@ -814,10 +825,10 @@ describe("TextareaResizeGrip", () => {
   // B1 决策反转：hidden = 完全不渲染手柄 + textarea 原生 resize 回退。
   // 旧「隐形热区」语义（空图形 + 24×24 可交互 Box）被推翻——不可见却可
   // 拖是隐蔽交互面，回退原生 resize 才是「隐藏」的自然语义。GRIP_SVGS
-  // 的 hidden 条目保留（TEXTAREA_GRIP_STYLE_KEYS 由 Object.keys 派生，
-  // 删条目即丢设置选项；resolveGripStyle("hidden") 归一化原样返回，早退
-  // 分支对存量 hidden 用户必然触发）；GripGlyph 仍渲染空 svg 占位（下拉
-  // 图标），视图侧 resize 三元由各视图测试覆盖。
+  // 的 hidden 条目保留（TEXTAREA_GRIP_STYLE_KEYS 清单须含 hidden，由
+  // 双向对账锁定，删注册表条目必红；resolveGripStyle("hidden") 归一化
+  // 原样返回，早退分支对存量 hidden 用户必然触发）；GripGlyph 仍渲染空
+  // svg 占位（下拉图标），视图侧 resize 三元由各视图测试覆盖。
   test("renders nothing for the hidden variant so the textarea falls back to native resize", async () => {
     const { container, root } = await renderGrip(jest.fn(), 120, "hidden");
     expect(container.querySelector('[role="slider"]')).toBeNull();

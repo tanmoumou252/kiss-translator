@@ -281,11 +281,11 @@ const GRIP_SVGS = {
       </>
     ),
   },
-  // hidden 条目保留仅为两个用途：TEXTAREA_GRIP_STYLE_KEYS 由
-  // Object.keys 派生（删条目即丢设置选项、StylesSetting 单源护栏必红），
-  // GripGlyph 以空 svg 占位（下拉图标）。手柄组件对 hidden 早退不渲染
-  // （B1 决策反转：旧「隐形热区」语义推翻——不可见却可拖是隐蔽交互面，
-  // textarea 回退原生 resize）。
+  // hidden 条目保留仅为两个用途：TEXTAREA_GRIP_STYLE_KEYS（config 层手写
+  // 清单）须含 hidden（双向对账用例：清单与注册表 key 序列任一侧增/删/
+  // 改名/调序失配必红），GripGlyph 以空 svg 占位（下拉图标）。手柄组件
+  // 对 hidden 早退不渲染（B1 决策反转：旧「隐形热区」语义推翻——不可见
+  // 却可拖是隐蔽交互面，textarea 回退原生 resize）。
   hidden: { fill: "none", content: null },
 };
 
@@ -307,12 +307,26 @@ export function resolveGripStyle(variant) {
 }
 
 /**
- * 手柄样式 key 的规范顺序清单（= Object.keys(GRIP_SVGS)，含 hidden）。
- * 单一事实源在 src/config/textareaGripStyles.js（零 React 依赖，供
- * config/视图层测试脱离组件运行时派生对账）；此处仅转发导出以保持
- * 既有 import 路径兼容。组件内查表仍以 GRIP_SVGS 为准，二者一致性由
- * TextareaResizeGrip.test.js 的逐键 resolveGripStyle 自检与
- * i18n.test.js 的派生 i18n 键守护共同锁定。
+ * 注册表 key 序列的只读访问器：返回 Object.keys(GRIP_SVGS) 的新副本。
+ * 供测试侧与 TEXTAREA_GRIP_STYLE_KEYS 做反向对账（注册表侧增/删/改名/
+ * 调序失配皆可判红）；只暴露键名，不导出注册表原始数据（SVG 资产），
+ * 维持本模块既有「不导出注册表原始数据」契约。每次调用返回新数组，
+ * 调用方无法经返回值改动注册表。
+ *
+ * @returns {string[]} 注册表 key 的有序序列（插入序，含 hidden）。
+ */
+export function getGripRegistryKeys() {
+  return Object.keys(GRIP_SVGS);
+}
+
+/**
+ * 手柄样式 key 的规范顺序清单（与 Object.keys(GRIP_SVGS) 有序恒等，
+ * 含 hidden）。单一事实源在 src/config/textareaGripStyles.js（零 React
+ * 依赖，供 config/视图层测试脱离组件运行时派生对账）；此处仅转发导出
+ * 以保持既有 import 路径兼容。组件内查表仍以 GRIP_SVGS 为准，二者
+ * 一致性由 TextareaResizeGrip.test.js 的双向对账（逐键 resolveGripStyle
+ * 前向自检 + 注册表键序反向恒等断言）与 i18n.test.js 的派生 i18n 键
+ * 守护共同锁定。
  */
 export { TEXTAREA_GRIP_STYLE_KEYS } from "../config/textareaGripStyles";
 
@@ -457,7 +471,8 @@ export default function TextareaResizeGrip({
   // hidden 变体早退（B1 决策反转）：完全不渲染手柄，textarea 回退原生
   // resize。置于全部 hooks 之后满足 Rules of Hooks——hidden ↔ 其他样式
   // 切换重渲染时 hook 调用序列保持一致。GRIP_SVGS.hidden 条目保留
-  // （TEXTAREA_GRIP_STYLE_KEYS 派生与 GripGlyph 占位依赖它），
+  // （TEXTAREA_GRIP_STYLE_KEYS 清单条目与 GripGlyph 占位依赖它，
+  // 删注册表条目由双向对账判红），
   // resolveGripStyle("hidden") 归一化原样返回，早退分支对存量 hidden
   // 用户必然触发。
   if (resolveGripStyle(variant) === "hidden") {

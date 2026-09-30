@@ -18,10 +18,11 @@ test("covers every supported locale for every registered label", () => {
 // 键完整性必须单独对账。本断言锁定 textarea 拉伸手柄功能域 18 键：任一
 // 键在 RU_I18N 缺失或为空即红（俄语用户静默回退英文文案的回归守护）。
 test("ships every textarea grip label as a native Russian translation", () => {
-  // grip_style_* 键从单一事实源（TEXTAREA_GRIP_STYLE_KEYS = Object.keys(
-  // GRIP_SVGS)）派生：注册表键为连字符形态，i18n 键为下划线形态，派生时
-  // 以 replace(/-/g, "_") 归一——注册表新增第 N 个样式时守护用例自动覆盖，
-  // 不再依赖手工同步的硬编码清单；4 个功能键与样式注册表无关联，保留字面量。
+  // grip_style_* 键从单一事实源 TEXTAREA_GRIP_STYLE_KEYS（config 层手写
+  // 清单，与组件内 GRIP_SVGS 注册表的有序恒等由 TextareaResizeGrip.test.js
+  // 的双向对账用例锁定）派生：清单键为连字符形态，i18n 键为下划线形态，
+  // 派生时以 replace(/-/g, "_") 归一——新增样式须先更新清单方能进入本守护；
+  // 4 个功能键与样式清单无关联，保留字面量。
   const gripKeys = [
     "field_resize_height",
     "field_resize_unlock_hint",
