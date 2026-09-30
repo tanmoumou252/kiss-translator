@@ -6205,13 +6205,13 @@ export const I18N = {
   // 其余半角括号带一个前导空格）。消费方（TextareaResizeGrip）将其与
   // label 无分隔符直连拼接，此处不得改存纯文案，否则 tooltip 粘连。
   field_resize_unlock_hint: {
-    zh: `（双击解锁高度）`,
-    en: ` (Double-click to unlock height)`,
-    zh_TW: `（雙擊解鎖高度）`,
-    ja: ` (ダブルクリックで高さを解除)`,
-    ko: ` (더블클릭으로 높이 잠금 해제)`,
-    tr: ` (Yükseklik kilidini açmak için çift tıklayın)`,
-    vi: ` (Nhấp đúp để mở khóa chiều cao)`,
+    zh: `（双击或按 Esc 解锁高度）`,
+    en: ` (Double-click or press Esc to unlock height)`,
+    zh_TW: `（雙擊或按 Esc 解鎖高度）`,
+    ja: ` (ダブルクリックまたは Esc キーで高さを解除)`,
+    ko: ` (더블클릭 또는 Esc 키로 높이 잠금 해제)`,
+    tr: ` (Yükseklik kilidini açmak için çift tıklayın veya Esc tuşuna basın)`,
+    vi: ` (Nhấp đúp hoặc nhấn Esc để mở khóa chiều cao)`,
   },
   settings_textarea_grip_style: {
     zh: `输入框拉伸手柄`,

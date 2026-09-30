@@ -601,8 +601,25 @@ export default function TextareaResizeGrip({
   const handleKeyDown = (event) => {
     // Escape 显式解锁：与双击路径（onDoubleClick）等价的键盘可达入口，
     // preventDefault 阻止浏览器级退出全屏/关闭浮层等默认语义误触。
+    // stopPropagation 阻断冒泡：祖先链上的 React onKeyDown（如弹窗壳
+    // 的 Esc 关闭 handler）会在解锁高度的同时关掉整个弹窗。
     if (event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
+      // 终止进行中指针会话：拖拽中按 Escape 须结束会话并释放 pointer
+      // capture，否则后续 pointermove 继续触发 onResize，把刚解锁的
+      // 高度重新锁回去。pointerId 非有限时跳过 capture 释放（不抛错）。
+      const session = sessionRef.current;
+      if (session) {
+        sessionRef.current = null;
+        if (Number.isFinite(session.pointerId)) {
+          try {
+            event.currentTarget.releasePointerCapture(session.pointerId);
+          } catch (error) {
+            // jsdom 与旧浏览器可能未实现 pointer capture，忽略即可。
+          }
+        }
+      }
       onRelease?.();
       return;
     }
@@ -641,6 +658,9 @@ export default function TextareaResizeGrip({
       // 语义为 vertical（光标形态 cursor: "ns-resize" 同口径）。
       aria-orientation="vertical"
       aria-label={label}
+      // Escape 为显式解锁快捷键（与双击等价），经 aria-keyshortcuts 向
+      // 辅助技术播报该键盘可达入口。
+      aria-keyshortcuts="Escape"
       title={unlockHint ? `${label}${unlockHint}` : label}
       tabIndex={0}
       aria-valuemin={MIN_TARGET_HEIGHT_PX}

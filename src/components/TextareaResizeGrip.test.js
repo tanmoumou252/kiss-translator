@@ -134,6 +134,9 @@ describe("TextareaResizeGrip", () => {
     expect(grip.getAttribute("aria-valuemax")).toBe("600");
     expect(grip.getAttribute("aria-valuetext")).toBe("120px");
     expect(grip.tabIndex).toBe(0);
+    // Escape 是显式解锁快捷键（与双击等价），读屏与辅助技术经
+    // aria-keyshortcuts 获知该键盘可达入口。
+    expect(grip.getAttribute("aria-keyshortcuts")).toBe("Escape");
     await act(async () => root.unmount());
   });
 
@@ -455,17 +458,86 @@ describe("TextareaResizeGrip", () => {
     await act(async () => root.unmount());
   });
 
+  // PR #7 遗留意见（#43/#41/#36/#40）：Escape 分支缺 stopPropagation。
+  // 手柄祖先链上有 React onKeyDown（Action/index.js 弹窗壳
+  // setShowPopup(false)），preventDefault 对祖先 handler 无效——不阻断
+  // 冒泡会在「解锁高度」的同时关掉整个弹窗。断言祖先容器监听不被触达。
+  test("stops Escape propagation so ancestor popup handlers are not reached", async () => {
+    const onRelease = jest.fn();
+    const { grip, container, root } = await renderGrip(
+      jest.fn(),
+      120,
+      undefined,
+      onRelease
+    );
+    // React 18 在根容器上委托监听：祖先 React handler（弹窗壳）经合成
+    // stopPropagation 阻断，对应 native 事件在根容器处停止上行。故监听
+    // 器挂在根容器之上的外层面板（与弹窗壳在手柄上层的真实拓扑一致）；
+    // 挂在容器自身会因同节点监听器不受 stopPropagation 影响而误报。
+    const outerPanel = document.createElement("div");
+    document.body.appendChild(outerPanel);
+    outerPanel.appendChild(container);
+    const ancestorSpy = jest.fn();
+    outerPanel.addEventListener("keydown", ancestorSpy);
+    fireKey(grip, "Escape");
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    expect(ancestorSpy).not.toHaveBeenCalled();
+    outerPanel.removeEventListener("keydown", ancestorSpy);
+    await act(async () => root.unmount());
+  });
+
+  // PR #7 遗留意见：拖拽会话进行中按 Escape——必须终止活跃会话并释放
+  // pointer capture，否则后续 pointermove 继续触发 onResize，把刚解锁的
+  // 高度重新锁回去。无活跃会话时 Escape 不得触碰 releasePointerCapture
+  // 也不得抛错（空值守卫）。
+  test("terminates the active pointer session and releases capture on Escape", async () => {
+    const onResize = jest.fn();
+    const onRelease = jest.fn();
+    const { grip, fieldRoot, root } = await renderGrip(
+      onResize,
+      undefined,
+      undefined,
+      onRelease
+    );
+    jest.spyOn(fieldRoot, "offsetHeight", "get").mockReturnValue(100);
+    firePointer(grip, "pointerdown", 100, 1);
+    fireKey(grip, "Escape");
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    expect(HTMLElement.prototype.releasePointerCapture).toHaveBeenCalledWith(1);
+    // 会话已终止：同指针的后续 move 不得再把高度锁回去。
+    firePointer(grip, "pointermove", 300, 1);
+    expect(onResize).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  test("does not touch pointer capture on Escape without an active session", async () => {
+    const onRelease = jest.fn();
+    const { grip, root } = await renderGrip(
+      jest.fn(),
+      120,
+      undefined,
+      onRelease
+    );
+    fireKey(grip, "Escape");
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    expect(HTMLElement.prototype.releasePointerCapture).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
   // 意见 C：解锁提示文案本体自带括号（zh/zh_TW 全角、其余半角+前导空格），
-  // 组件侧零括号直连——锁死真实 I18N 字典的括号形态契约。
+  // 组件侧零括号直连——锁死真实 I18N 字典的括号形态契约。PR #7 遗留意见
+  // （#44/#29 后半/#37 后半）：提示须同时提及 Esc 键盘解锁入口。
   test("ships the unlock hint with brackets baked into the i18n copy", () => {
     const entry = I18N.field_resize_unlock_hint;
     expect(entry).toBeDefined();
-    expect(entry.zh).toBe("（双击解锁高度）");
-    expect(entry.zh_TW).toBe("（雙擊解鎖高度）");
-    for (const lang of ["en", "ja", "ko", "tr", "vi"]) {
+    expect(entry.zh).toBe("（双击或按 Esc 解锁高度）");
+    expect(entry.zh_TW).toBe("（雙擊或按 Esc 解鎖高度）");
+    expect(entry.en).toBe(" (Double-click or press Esc to unlock height)");
+    for (const lang of ["ja", "ko", "tr", "vi"]) {
       expect(entry[lang]).toMatch(/^ \(.+\)$/);
       expect(entry[lang].startsWith("（")).toBe(false);
       expect(entry[lang].includes("）")).toBe(false);
+      expect(entry[lang].includes("Esc")).toBe(true);
     }
   });
 

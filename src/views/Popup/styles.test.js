@@ -259,22 +259,42 @@ describe("popup window result textarea flex chain", () => {
     expect(resultRule).toContain("flex-direction: column");
     expect(resultRule).toContain("min-height: 180px");
 
-    // flexRule 以联合选择器前缀（> .MuiFormControl-root）锚定 styles.js
-    // 中 `.MuiInputBase-root { flex: 1; }` 这条规则；`align-items: stretch`
-    // 是其后的另一条独立规则，须单独匹配断言，不能复用同一条捕获。
-    const flexRule = POPUP_STYLES.match(
-      /\.kt-translation-result > \.MuiFormControl-root,\s*\.kt-popup-shell--window \.kt-translation-result \.MuiInputBase-root\s*\{([^}]*)\}/
-    )?.[1];
-    expect(flexRule).toContain("flex: 1");
+    // 顺序无关的规则捕获：解析全部 CSS 规则后按联合选择器成员逐条比对
+    // （成员被 format 重排/拆分不脆弱；失配时经长度与 some 断言干净变红，
+    // 而非 undefined toContain 抛错式失败）。flex: 1 是两成员共用的联合
+    // 规则体（跨行联合选择器，{ 前还有另一成员，不能对单成员直接锚 {），
+    // 分别对各成员断言。
+    const cssRules = [
+      ...POPUP_STYLES.matchAll(/([^{}]+)\{([^}]*)\}/g),
+    ].map((m) => ({
+      members: m[1].split(",").map((selector) => selector.trim()),
+      body: m[2],
+    }));
+    const formControlFlexBodies = cssRules
+      .filter((rule) =>
+        rule.members.includes(
+          ".kt-popup-shell--window .kt-translation-result > .MuiFormControl-root"
+        )
+      )
+      .map((rule) => rule.body);
+    expect(formControlFlexBodies.length).toBeGreaterThan(0);
+    expect(
+      formControlFlexBodies.some((body) => body.includes("flex: 1"))
+    ).toBe(true);
 
-    // align-items: stretch 与 flexRule 是两条独立规则（联合规则的第二个
-    // 成员选择器与本正则前缀同形，单次 match 会先命中联合规则体），
-    // matchAll 收集全部同名选择器规则体后以 some 断言，免除排版格式依赖。
-    const inputBaseBodies = [
-      ...POPUP_STYLES.matchAll(
-        /\.kt-popup-shell--window \.kt-translation-result \.MuiInputBase-root\s*\{([^}]*)\}/g
-      ),
-    ].map((m) => m[1]);
+    // align-items: stretch 与 flex: 1 是两条独立规则（同名成员选择器出现
+    // 两条规则体），收集后以 some 分别断言。
+    const inputBaseBodies = cssRules
+      .filter((rule) =>
+        rule.members.includes(
+          ".kt-popup-shell--window .kt-translation-result .MuiInputBase-root"
+        )
+      )
+      .map((rule) => rule.body);
+    expect(inputBaseBodies.length).toBeGreaterThan(0);
+    expect(
+      inputBaseBodies.some((body) => body.includes("flex: 1"))
+    ).toBe(true);
     expect(
       inputBaseBodies.some((body) => body.includes("align-items: stretch"))
     ).toBe(true);

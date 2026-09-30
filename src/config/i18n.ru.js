@@ -429,6 +429,7 @@ export const RU_I18N = {
   follow_selection: `Окно перевода следует за выделением`,
   tranbox_auto_height: `Автоматическая высота окна перевода`,
   field_resize_height: `Перетащите, чтобы изменить высоту`,
+  field_resize_unlock_hint: ` (Двойной клик или клавиша Esc, чтобы снять блокировку высоты)`,
   tranbox_interact_mode: `Способ взаимодействия с окном перевода`,
   tranbox_interact_click: `Перевод по клику на выделенный текст`,
   tranbox_interact_dblclick: `Перевод по двойному клику на выделенный текст`,
