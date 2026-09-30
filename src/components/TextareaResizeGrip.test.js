@@ -486,6 +486,64 @@ describe("TextareaResizeGrip", () => {
     await act(async () => root.unmount());
   });
 
+  // 未锁定态 Escape：事件阻断收窄到锁定态——preventDefault 与冒泡阻断
+  // 均不得发生，祖先浮层的 Esc 关闭路径保持可达；onRelease 仍恰好一次
+  // （键盘解锁入口的存在性与锁定态无关）。
+  test("lets unlocked Escape bubble to ancestor handlers while still releasing", async () => {
+    const onRelease = jest.fn();
+    const { grip, container, root } = await renderGrip(
+      jest.fn(),
+      undefined,
+      undefined,
+      onRelease
+    );
+    const outerPanel = document.createElement("div");
+    document.body.appendChild(outerPanel);
+    outerPanel.appendChild(container);
+    const ancestorSpy = jest.fn();
+    outerPanel.addEventListener("keydown", ancestorSpy);
+    let prevented = false;
+    act(() => {
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        key: "Escape",
+        cancelable: true,
+      });
+      grip.dispatchEvent(event);
+      prevented = event.defaultPrevented;
+    });
+    expect(prevented).toBe(false);
+    expect(ancestorSpy).toHaveBeenCalledTimes(1);
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    outerPanel.removeEventListener("keydown", ancestorSpy);
+    await act(async () => root.unmount());
+  });
+
+  // 拖拽会话中按 Escape：会话终止必须复用 endSession 的焦点归还语义——
+  // 焦点滞留手柄时交还 textarea，否则方向键被 slider 吞掉、输入焦点丢失。
+  test("returns focus to the textarea when Escape terminates a drag session", async () => {
+    const onRelease = jest.fn();
+    const { grip, container, root } = await renderGrip(
+      jest.fn(),
+      undefined,
+      undefined,
+      onRelease
+    );
+    const textarea = container.querySelector('[data-testid="target"]');
+    act(() => {
+      textarea.focus();
+    });
+    firePointer(grip, "pointerdown", 100, 1);
+    act(() => {
+      grip.focus();
+    });
+    expect(document.activeElement).toBe(grip);
+    fireKey(grip, "Escape");
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(textarea);
+    await act(async () => root.unmount());
+  });
+
   // PR #7 遗留意见：拖拽会话进行中按 Escape——必须终止活跃会话并释放
   // pointer capture，否则后续 pointermove 继续触发 onResize，把刚解锁的
   // 高度重新锁回去。无活跃会话时 Escape 不得触碰 releasePointerCapture
@@ -521,6 +579,38 @@ describe("TextareaResizeGrip", () => {
     fireKey(grip, "Escape");
     expect(onRelease).toHaveBeenCalledTimes(1);
     expect(HTMLElement.prototype.releasePointerCapture).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  // 对照防过修：锁定态 Escape 仍须阻断默认语义与冒泡（弹窗壳不被误关），
+  // 收窄只针对未锁定态。
+  test("still blocks locked Escape propagation so ancestor handlers are not reached", async () => {
+    const onRelease = jest.fn();
+    const { grip, container, root } = await renderGrip(
+      jest.fn(),
+      120,
+      undefined,
+      onRelease
+    );
+    const outerPanel = document.createElement("div");
+    document.body.appendChild(outerPanel);
+    outerPanel.appendChild(container);
+    const ancestorSpy = jest.fn();
+    outerPanel.addEventListener("keydown", ancestorSpy);
+    let prevented = false;
+    act(() => {
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        key: "Escape",
+        cancelable: true,
+      });
+      grip.dispatchEvent(event);
+      prevented = event.defaultPrevented;
+    });
+    expect(prevented).toBe(true);
+    expect(ancestorSpy).not.toHaveBeenCalled();
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    outerPanel.removeEventListener("keydown", ancestorSpy);
     await act(async () => root.unmount());
   });
 

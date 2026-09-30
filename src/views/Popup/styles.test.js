@@ -1,6 +1,19 @@
 import { POPUP_STYLES } from "./styles";
 import { getCssAtRuleBodies } from "../../styles/testUtils";
 
+// 顶层规则解析：先剥块注释（注释文本会被扁平正则并进下一条规则的选择器
+// 造成错配），再剥 @media/@supports 整块（前导至闭合大括号，支持一层嵌套，
+// 嵌套块内规则不外泄），仅对剩余顶层文本跑扁平规则正则。不引入解析器依赖。
+function parseTopLevelRules(css) {
+  const stripped = String(css || "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/@(?:media|supports)[^{]*\{(?:[^{}]*|\{[^{}]*\})*\}/g, "");
+  return [...stripped.matchAll(/([^{}]+)\{([^}]*)\}/g)].map((m) => ({
+    members: m[1].split(",").map((selector) => selector.trim()),
+    body: m[2],
+  }));
+}
+
 describe("Safari popup sizing", () => {
   test("keeps an intrinsic preferred width within the available container", () => {
     const shellRule = POPUP_STYLES.match(/\.kt-popup-shell\s*\{([^}]*)\}/)?.[1];
@@ -264,12 +277,7 @@ describe("popup window result textarea flex chain", () => {
     // 而非 undefined toContain 抛错式失败）。flex: 1 是两成员共用的联合
     // 规则体（跨行联合选择器，{ 前还有另一成员，不能对单成员直接锚 {），
     // 分别对各成员断言。
-    const cssRules = [
-      ...POPUP_STYLES.matchAll(/([^{}]+)\{([^}]*)\}/g),
-    ].map((m) => ({
-      members: m[1].split(",").map((selector) => selector.trim()),
-      body: m[2],
-    }));
+    const cssRules = parseTopLevelRules(POPUP_STYLES);
     const formControlFlexBodies = cssRules
       .filter((rule) =>
         rule.members.includes(
@@ -313,5 +321,32 @@ describe("popup window result textarea flex chain", () => {
     expect(textareaRule).toBeDefined();
     expect(textareaRule).not.toMatch(/(?:^|[^-])height\s*:/);
     expect(textareaRule).not.toMatch(/resize\s*:/);
+  });
+});
+
+// 注释/at-rule 错配回归护栏：带块注释前导的顶层规则必须解析为干净规则
+// （注释并入选择器即红）；@media/@supports 嵌套块整体剥离，不得产出把
+// at-rule 前导与嵌套首条规则并合的残缺规则。
+describe("popup stylesheet top-level rule parsing", () => {
+  test("parses the commented textarea rule as a clean top-level rule", () => {
+    const cssRules = parseTopLevelRules(POPUP_STYLES);
+    const textareaRule = cssRules.find((rule) =>
+      rule.members.includes(
+        '.kt-popup-shell--window .kt-translation-result textarea:not([aria-hidden="true"])'
+      )
+    );
+    expect(textareaRule).toBeDefined();
+    expect(textareaRule.body).toContain("flex: 1");
+    expect(textareaRule.body).toContain("min-height: 140px");
+  });
+
+  test("emits no polluted selectors from comments or at-rule preludes", () => {
+    const cssRules = parseTopLevelRules(POPUP_STYLES);
+    for (const rule of cssRules) {
+      for (const member of rule.members) {
+        expect(member).not.toMatch(/\*\/|\/\*/);
+        expect(member.startsWith("@")).toBe(false);
+      }
+    }
   });
 });

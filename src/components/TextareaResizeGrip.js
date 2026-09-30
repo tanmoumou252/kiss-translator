@@ -379,7 +379,7 @@ export function GripGlyph({ variant, size = 18 }) {
  *   "concentric-smooth"；未知值同样回落，保证永不渲染空手柄。
  * @param {() => void} [props.onRelease] 显式解锁回调：双击或聚焦时按
  *   Escape 触发；消费方传入 hook 的 releaseHeight，未传时两条路径均
- *   为 no-op（Escape 路径仍 preventDefault）。
+ *   为 no-op（Escape 路径仅锁定态才阻断默认行为与冒泡）。
  * @param {string} [props.unlockHint] 解锁提示文案（消费方经 i18n 传入；
  *   组件不引 i18n，维持现契约）。非空时与 label 无分隔符直连拼进 title，
  *   文案须自带前导空格与括号（括号全角/半角按语言本地化，见
@@ -517,15 +517,21 @@ export default function TextareaResizeGrip({
     return Math.min(Math.max(rounded, MIN_TARGET_HEIGHT_PX), max);
   };
 
-  const endSession = (event) => {
+  // 会话终止共用路径：pointerup/cancel/lostpointercapture（经 endSession）
+  // 与 Escape 解锁（handleKeyDown）都经本函数清会话、释放 pointer capture
+  // 并归还焦点。异 pointerId 的多指防护留在 endSession 前置守卫，不进本
+  // 函数（Escape 无指针身份，必须无条件终止）。
+  const terminateSession = (event) => {
     const session = sessionRef.current;
-    // 异 pointerId 的 up/cancel/lostpointercapture 不闭合会话（多指防护）。
-    if (!session || event.pointerId !== session.pointerId) return;
+    if (!session) return;
     sessionRef.current = null;
-    try {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    } catch (error) {
-      // jsdom 与旧浏览器可能未实现 pointer capture，忽略即可。
+    // pointerId 非有限时跳过 capture 释放（不抛错），与原 Escape 路径守卫同口径。
+    if (Number.isFinite(session.pointerId)) {
+      try {
+        event.currentTarget.releasePointerCapture(session.pointerId);
+      } catch (error) {
+        // jsdom 与旧浏览器可能未实现 pointer capture，忽略即可。
+      }
     }
     // 焦点归还兜底：某些平台在 preventDefault 下仍会把焦点转移到手柄。
     // 会话开始时 textarea 持有焦点、而此刻焦点仍滞留在手柄，则把焦点交还
@@ -539,6 +545,13 @@ export default function TextareaResizeGrip({
     ) {
       textareaEl.focus({ preventScroll: true });
     }
+  };
+
+  const endSession = (event) => {
+    const session = sessionRef.current;
+    // 异 pointerId 的 up/cancel/lostpointercapture 不闭合会话（多指防护）。
+    if (!session || event.pointerId !== session.pointerId) return;
+    terminateSession(event);
   };
 
   const handlePointerDown = (event) => {
@@ -599,27 +612,22 @@ export default function TextareaResizeGrip({
   };
 
   const handleKeyDown = (event) => {
-    // Escape 显式解锁：与双击路径（onDoubleClick）等价的键盘可达入口，
-    // preventDefault 阻止浏览器级退出全屏/关闭浮层等默认语义误触。
-    // stopPropagation 阻断冒泡：祖先链上的 React onKeyDown（如弹窗壳
-    // 的 Esc 关闭 handler）会在解锁高度的同时关掉整个弹窗。
+    // Escape 显式解锁：与双击路径（onDoubleClick）等价的键盘可达入口。
+    // 事件阻断收窄到锁定态：仅当前锁定高度（Number.isFinite，与
+    // useTextareaHeightLock 判定同口径）时才 preventDefault + stopPropagation，
+    // 未锁定时祖先浮层（导航抽屉/弹窗壳）的 Esc 关闭语义保持可达。
+    // stopPropagation 的保证作用域是 React 树内冒泡阶段的 Esc handler；
+    // window 捕获阶段监听（如 shortcut.js、ruleEditorSession.js 的全局
+    // 快捷键）不受其影响，也不应受影响。
     if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      // 终止进行中指针会话：拖拽中按 Escape 须结束会话并释放 pointer
-      // capture，否则后续 pointermove 继续触发 onResize，把刚解锁的
-      // 高度重新锁回去。pointerId 非有限时跳过 capture 释放（不抛错）。
-      const session = sessionRef.current;
-      if (session) {
-        sessionRef.current = null;
-        if (Number.isFinite(session.pointerId)) {
-          try {
-            event.currentTarget.releasePointerCapture(session.pointerId);
-          } catch (error) {
-            // jsdom 与旧浏览器可能未实现 pointer capture，忽略即可。
-          }
-        }
+      if (Number.isFinite(value)) {
+        event.preventDefault();
+        event.stopPropagation();
       }
+      // 终止进行中指针会话并播报解锁：无论锁定与否都复用 endSession 的
+      // 终止语义（含焦点归还），否则拖拽中按 Escape 后后续 pointermove
+      // 继续触发 onResize，把刚解锁的高度重新锁回去，且焦点滞留 slider。
+      terminateSession(event);
       onRelease?.();
       return;
     }

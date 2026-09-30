@@ -1,5 +1,6 @@
 import { I18N, UI_LANGS, newI18n } from "./i18n";
 import { RU_I18N } from "./i18n.ru";
+import { TEXTAREA_GRIP_STYLE_KEYS } from "../components/TextareaResizeGrip";
 
 test("covers every supported locale for every registered label", () => {
   const locales = UI_LANGS.map(([locale]) => locale);
@@ -17,25 +18,18 @@ test("covers every supported locale for every registered label", () => {
 // 键完整性必须单独对账。本断言锁定 textarea 拉伸手柄功能域 18 键：任一
 // 键在 RU_I18N 缺失或为空即红（俄语用户静默回退英文文案的回归守护）。
 test("ships every textarea grip label as a native Russian translation", () => {
+  // grip_style_* 键从单一事实源（TEXTAREA_GRIP_STYLE_KEYS = Object.keys(
+  // GRIP_SVGS)）派生：注册表键为连字符形态，i18n 键为下划线形态，派生时
+  // 以 replace(/-/g, "_") 归一——注册表新增第 N 个样式时守护用例自动覆盖，
+  // 不再依赖手工同步的硬编码清单；4 个功能键与样式注册表无关联，保留字面量。
   const gripKeys = [
     "field_resize_height",
     "field_resize_unlock_hint",
     "settings_textarea_grip_style",
     "settings_textarea_grip_style_desc",
-    "grip_style_concentric_smooth",
-    "grip_style_concentric_triple",
-    "grip_style_corner_pill",
-    "grip_style_dotted_concentric",
-    "grip_style_dotted_single",
-    "grip_style_triple_chevrons",
-    "grip_style_diagonal_arrow",
-    "grip_style_dual_pills",
-    "grip_style_expanding_beads",
-    "grip_style_chevrons_star",
-    "grip_style_symmetric_division",
-    "grip_style_percent_style",
-    "grip_style_orbit_satellite",
-    "grip_style_hidden",
+    ...TEXTAREA_GRIP_STYLE_KEYS.map(
+      (key) => `grip_style_${key.replace(/-/g, "_")}`
+    ),
   ];
   const missing = gripKeys.filter(
     (key) =>
