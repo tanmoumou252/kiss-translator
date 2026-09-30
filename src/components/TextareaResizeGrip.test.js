@@ -407,6 +407,54 @@ describe("TextareaResizeGrip", () => {
     await act(async () => root.unmount());
   });
 
+  // Escape 键盘解锁：手柄聚焦时按 Escape 等价于双击——preventDefault
+  // 后调 onRelease 恰一次；与方向键调节、双击共同构成完整键盘可达
+  // 解锁路径（onRelease 未传时 preventDefault 仍发生、调用为 no-op）。
+  test("releases the height on Escape keydown without altering arrow-key resize", async () => {
+    const onRelease = jest.fn();
+    const onResize = jest.fn();
+    const { grip, root } = await renderGrip(onResize, 120, undefined, onRelease);
+    // 未聚焦的其他键不触发解锁（对照样本：非 Escape 键走既有分支）。
+    fireKey(grip, "Enter");
+    expect(onRelease).not.toHaveBeenCalled();
+    // Escape：preventDefault 且 onRelease 恰被调用一次。
+    let prevented = false;
+    act(() => {
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        key: "Escape",
+        cancelable: true,
+      });
+      grip.dispatchEvent(event);
+      prevented = event.defaultPrevented;
+    });
+    expect(prevented).toBe(true);
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    // 方向键调节路径不受 Escape 分支影响：ArrowDown 仍走 onResize。
+    jest.spyOn(grip, "offsetHeight", "get").mockReturnValue(100);
+    fireKey(grip, "ArrowDown");
+    expect(onResize).toHaveBeenCalled();
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+  });
+
+  test("ignores Escape when onRelease is not provided", async () => {
+    const onResize = jest.fn();
+    const { grip, root } = await renderGrip(onResize, 120);
+    let prevented = false;
+    act(() => {
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        key: "Escape",
+        cancelable: true,
+      });
+      grip.dispatchEvent(event);
+      prevented = event.defaultPrevented;
+    });
+    expect(prevented).toBe(true);
+    await act(async () => root.unmount());
+  });
+
   // 意见 C：解锁提示文案本体自带括号（zh/zh_TW 全角、其余半角+前导空格），
   // 组件侧零括号直连——锁死真实 I18N 字典的括号形态契约。
   test("ships the unlock hint with brackets baked into the i18n copy", () => {

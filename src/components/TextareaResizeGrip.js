@@ -377,8 +377,9 @@ export function GripGlyph({ variant, size = 18 }) {
  * @param {string} props.label 无障碍名称（aria-label + title）。
  * @param {string} [props.variant] 手柄样式 key（见 GRIP_SVGS），缺省回落
  *   "concentric-smooth"；未知值同样回落，保证永不渲染空手柄。
- * @param {() => void} [props.onRelease] 双击显式解锁回调（B3）：消费方
- *   传入 hook 的 releaseHeight；未传时双击为 no-op。
+ * @param {() => void} [props.onRelease] 显式解锁回调：双击或聚焦时按
+ *   Escape 触发；消费方传入 hook 的 releaseHeight，未传时两条路径均
+ *   为 no-op（Escape 路径仍 preventDefault）。
  * @param {string} [props.unlockHint] 解锁提示文案（消费方经 i18n 传入；
  *   组件不引 i18n，维持现契约）。非空时与 label 无分隔符直连拼进 title，
  *   文案须自带前导空格与括号（括号全角/半角按语言本地化，见
@@ -598,6 +599,13 @@ export default function TextareaResizeGrip({
   };
 
   const handleKeyDown = (event) => {
+    // Escape 显式解锁：与双击路径（onDoubleClick）等价的键盘可达入口，
+    // preventDefault 阻止浏览器级退出全屏/关闭浮层等默认语义误触。
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onRelease?.();
+      return;
+    }
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
     event.preventDefault();
     const baselineEl = getBaselineEl();
