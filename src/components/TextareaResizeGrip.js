@@ -308,10 +308,13 @@ export function resolveGripStyle(variant) {
 
 /**
  * 手柄样式 key 的规范顺序清单（= Object.keys(GRIP_SVGS)，含 hidden）。
- * 下拉选项等消费方据此对账：注册表新增/删减 key 而选项未同步时，
- * StylesSetting.test.js 的单源护栏断言必红。
+ * 单一事实源在 src/config/textareaGripStyles.js（零 React 依赖，供
+ * config/视图层测试脱离组件运行时派生对账）；此处仅转发导出以保持
+ * 既有 import 路径兼容。组件内查表仍以 GRIP_SVGS 为准，二者一致性由
+ * TextareaResizeGrip.test.js 的逐键 resolveGripStyle 自检与
+ * i18n.test.js 的派生 i18n 键守护共同锁定。
  */
-export const TEXTAREA_GRIP_STYLE_KEYS = Object.keys(GRIP_SVGS);
+export { TEXTAREA_GRIP_STYLE_KEYS } from "../config/textareaGripStyles";
 
 /**
  * 纯展示手柄图形：复用 GRIP_SVGS 注册表与 svg 壳形态（width/height/
@@ -620,7 +623,11 @@ export default function TextareaResizeGrip({
     // window 捕获阶段监听（如 shortcut.js、ruleEditorSession.js 的全局
     // 快捷键）不受其影响，也不应受影响。
     if (event.key === "Escape") {
-      if (Number.isFinite(value)) {
+      // 阻断条件并入会话态：pointerdown 建立会话但尚未 move 时 onResize
+      // 未被调过、value 仍非有限数，此时 Esc 同样必须拦下——否则祖先浮层
+      // （导航抽屉/弹窗壳）的 Esc 关闭语义被误触，「取消拖拽」呈现为
+      // 「关闭浮层」。未锁定且无会话时祖先 Esc 语义保持可达。
+      if (Number.isFinite(value) || sessionRef.current) {
         event.preventDefault();
         event.stopPropagation();
       }

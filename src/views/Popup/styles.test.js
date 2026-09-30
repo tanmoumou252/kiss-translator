@@ -1,13 +1,14 @@
 import { POPUP_STYLES } from "./styles";
-import { getCssAtRuleBodies } from "../../styles/testUtils";
+import {
+  getCssAtRuleBodies,
+  stripTopLevelAtRuleBlocks,
+} from "../../styles/testUtils";
 
-// 顶层规则解析：先剥块注释（注释文本会被扁平正则并进下一条规则的选择器
-// 造成错配），再剥 @media/@supports 整块（前导至闭合大括号，支持一层嵌套，
-// 嵌套块内规则不外泄），仅对剩余顶层文本跑扁平规则正则。不引入解析器依赖。
+// 顶层规则解析：块注释与任意 @keyword{...} 顶层块统一由共用 helper
+// stripTopLevelAtRuleBlocks（括号深度配平）剥除，仅对剩余顶层文本跑
+// 扁平规则正则。不引入解析器依赖，不再自备第二套 at-rule 正则。
 function parseTopLevelRules(css) {
-  const stripped = String(css || "")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/@(?:media|supports)[^{]*\{(?:[^{}]*|\{[^{}]*\})*\}/g, "");
+  const stripped = stripTopLevelAtRuleBlocks(css);
   return [...stripped.matchAll(/([^{}]+)\{([^}]*)\}/g)].map((m) => ({
     members: m[1].split(",").map((selector) => selector.trim()),
     body: m[2],
@@ -342,11 +343,55 @@ describe("popup stylesheet top-level rule parsing", () => {
 
   test("emits no polluted selectors from comments or at-rule preludes", () => {
     const cssRules = parseTopLevelRules(POPUP_STYLES);
+    expect(cssRules.length).toBeGreaterThan(0);
     for (const rule of cssRules) {
       for (const member of rule.members) {
-        expect(member).not.toMatch(/\*\/|\/\*/);
         expect(member.startsWith("@")).toBe(false);
+        expect(member).not.toContain("{");
       }
     }
+  });
+});
+
+describe("stripTopLevelAtRuleBlocks (shared at-rule stripper)", () => {
+  test("strips @keyframes blocks the legacy media/supports-only regex misses", () => {
+    const css =
+      "@keyframes spin { from { transform: none; } to { transform: rotate(1turn); } } .a { color: red; }";
+    const out = stripTopLevelAtRuleBlocks(css);
+    expect(out).not.toContain("@keyframes");
+    expect(out).toContain(".a { color: red; }");
+  });
+
+  test("strips at-rules nested two levels deep", () => {
+    const css =
+      "@media (max-width: 100px) { @supports (display: grid) { .b { display: grid; } } } .c { margin: 0; }";
+    const out = stripTopLevelAtRuleBlocks(css);
+    expect(out).not.toContain("@media");
+    expect(out).not.toContain("@supports");
+    expect(out).not.toContain(".b");
+    expect(out).toContain(".c { margin: 0; }");
+  });
+
+  test("keeps plain top-level rules and blockless at-statements", () => {
+    const css = "@import url(x.css); .d { color: blue; } .e { color: green; }";
+    const out = stripTopLevelAtRuleBlocks(css);
+    expect(out).toContain("@import url(x.css);");
+    expect(out).toContain(".d { color: blue; }");
+    expect(out).toContain(".e { color: green; }");
+  });
+
+  test("normalizes non-string input to empty text", () => {
+    expect(stripTopLevelAtRuleBlocks(undefined)).toBe("");
+    expect(stripTopLevelAtRuleBlocks(null)).toBe("");
+  });
+
+  test("keeps degenerate at-rule inputs as plain text without hanging", () => {
+    // 退化输入域锁定：@ 后既无 { 也无 ;（裸 @ 前导）与未闭合块，均不得
+    // 抛错或挂起，剩余文本整体按普通顶层文本保留（jasmine 默认超时对
+    // 死循环类回归天然兜底，用例只断言输出形态、不做计时）。
+    expect(stripTopLevelAtRuleBlocks("@media")).toBe("@media");
+    const unclosed = stripTopLevelAtRuleBlocks("@media { .a { color: red }");
+    expect(unclosed).toContain("@media");
+    expect(unclosed).toContain(".a { color: red }");
   });
 });

@@ -3,7 +3,11 @@ import { CacheProvider } from "@emotion/react";
 import { act, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import Box from "@mui/material/Box";
-import TextareaResizeGrip, { GripGlyph } from "./TextareaResizeGrip";
+import TextareaResizeGrip, {
+  GripGlyph,
+  resolveGripStyle,
+} from "./TextareaResizeGrip";
+import { TEXTAREA_GRIP_STYLE_KEYS } from "../config/textareaGripStyles";
 import { I18N } from "../config/i18n";
 
 // React 18 act 环境标志：缺失时 react-dom 对每次 createRoot+act 渲染
@@ -597,6 +601,50 @@ describe("TextareaResizeGrip", () => {
     outerPanel.appendChild(container);
     const ancestorSpy = jest.fn();
     outerPanel.addEventListener("keydown", ancestorSpy);
+    let prevented = false;
+    act(() => {
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        key: "Escape",
+        cancelable: true,
+      });
+      grip.dispatchEvent(event);
+      prevented = event.defaultPrevented;
+    });
+    expect(prevented).toBe(true);
+    expect(ancestorSpy).not.toHaveBeenCalled();
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    outerPanel.removeEventListener("keydown", ancestorSpy);
+    await act(async () => root.unmount());
+  });
+
+  test("keeps the shared constant key list resolvable by the grip registry", () => {
+    // 单一事实源自检：常量清单逐键必须被注册表自有属性命中（resolveGripStyle
+    // 回落口径即返回原键）；清单多写、改名或删键时本断言必红。
+    for (const key of TEXTAREA_GRIP_STYLE_KEYS) {
+      expect(resolveGripStyle(key)).toBe(key);
+    }
+    expect(TEXTAREA_GRIP_STYLE_KEYS).toContain("hidden");
+  });
+
+  // 会话窗口 Escape 阻断：pointerdown 已建立会话但尚未 move 时 onResize
+  // 未被调过、value 仍非有限数——阻断条件并入会话态后，Esc 必须被拦下
+  // （祖先浮层关闭语义不得误触），且会话被终止、onRelease 恰好一次。
+  test("blocks Escape while a pointer session is active even when unlocked", async () => {
+    const onRelease = jest.fn();
+    const { grip, container, root } = await renderGrip(
+      jest.fn(),
+      undefined,
+      undefined,
+      onRelease
+    );
+    const outerPanel = document.createElement("div");
+    document.body.appendChild(outerPanel);
+    outerPanel.appendChild(container);
+    const ancestorSpy = jest.fn();
+    outerPanel.addEventListener("keydown", ancestorSpy);
+    // pointerdown 建立会话但不派发 pointermove：value 仍非有限数。
+    firePointer(grip, "pointerdown", 100, 1);
     let prevented = false;
     act(() => {
       const event = new KeyboardEvent("keydown", {

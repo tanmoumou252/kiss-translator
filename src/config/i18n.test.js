@@ -1,6 +1,6 @@
 import { I18N, UI_LANGS, newI18n } from "./i18n";
 import { RU_I18N } from "./i18n.ru";
-import { TEXTAREA_GRIP_STYLE_KEYS } from "../components/TextareaResizeGrip";
+import { TEXTAREA_GRIP_STYLE_KEYS } from "./textareaGripStyles";
 
 test("covers every supported locale for every registered label", () => {
   const locales = UI_LANGS.map(([locale]) => locale);
