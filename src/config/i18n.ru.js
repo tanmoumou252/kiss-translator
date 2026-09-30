@@ -639,6 +639,6 @@ export const RU_I18N = {
   grip_style_symmetric_division: `Симметричный разделитель`,
   grip_style_percent_style: `Стиль «процент»`,
   grip_style_orbit_satellite: `Спутник на орбите`,
-  grip_style_hidden: `Невидимая зона захвата (перетаскивание для изменения высоты)`,
+  grip_style_hidden: `Скрыт (стандартное изменение размера)`,
   close: `Закрыть`,
 };

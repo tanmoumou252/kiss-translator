@@ -166,6 +166,7 @@ function renderTranCont(props = {}) {
 
 describe("TranCont", () => {
   beforeEach(() => {
+    __resetSessionHeightMapForTests();
     apiTranslate.mockReset();
     document.body.innerHTML = "";
   });
@@ -1109,6 +1110,7 @@ describe("TranCont", () => {
 
 describe("TranCont textarea grip style", () => {
   beforeEach(() => {
+    __resetSessionHeightMapForTests();
     apiTranslate.mockReset();
     document.body.innerHTML = "";
   });
