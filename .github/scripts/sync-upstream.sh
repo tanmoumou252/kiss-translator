@@ -107,6 +107,13 @@ if [ -d .github/workflows ]; then
 fi
 git checkout origin/hub -- .github/
 git add .github/
+
+if git cat-file -e origin/hub:.coderabbit.yaml 2>/dev/null; then
+  git checkout origin/hub -- .coderabbit.yaml
+  git add .coderabbit.yaml
+else
+  echo "::warning::origin/hub 无 .coderabbit.yaml；wip 将缺 CodeRabbit 配置（auto-review 会跳过 base=wip 的 PR）。"
+fi
 git commit -m "ci: overlay full automation layer onto ephemeral staging [skip ci]" || true
 
 # 5. 强制推送到远程临时分支 wip
