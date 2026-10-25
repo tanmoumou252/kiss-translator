@@ -18,7 +18,7 @@ import { packageServiceCatalog } from "../../providers/packageCatalog";
 import ApiProviderIcon from "../../components/ApiProviderIcon";
 import PluginPromptPreview from "./PluginPromptPreview";
 import { defaultPromptCapabilities } from "../../providers/defaultPrompts";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { ExpandMoreIcon } from "../../components/icons";
 import {
   Box,
   TableContainer,

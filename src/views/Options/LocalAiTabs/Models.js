@@ -14,11 +14,13 @@ import InputLabel from "@mui/material/InputLabel";
 import LinearProgress from "@mui/material/LinearProgress";
 import IconButton from "@mui/material/IconButton";
 import Collapse from "@mui/material/Collapse";
-import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
-import KeyboardArrowUpRoundedIcon from "@mui/icons-material/KeyboardArrowUpRounded";
-import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
-import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
-import PauseCircleOutlineRoundedIcon from "@mui/icons-material/PauseCircleOutlineRounded";
+import {
+  DeleteOutlineRoundedIcon,
+  DownloadRoundedIcon,
+  KeyboardArrowDownRoundedIcon,
+  KeyboardArrowUpRoundedIcon,
+  PauseCircleOutlineRoundedIcon,
+} from "../../../components/icons";
 import { sharedModelManager as manager } from "../../../localAi/core/modelManager";
 import { runtimeHost } from "../../../localAi/runtime/runtimeHostAdapter";
 import { nextRpcId } from "../../../localAi/runtime/rpc";

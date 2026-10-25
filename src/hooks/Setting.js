@@ -4,6 +4,8 @@ import {
   useContext,
   useMemo,
   useEffect,
+  useLayoutEffect,
+  useRef,
 } from "react";
 import Alert from "@mui/material/Alert";
 import {
@@ -18,6 +20,7 @@ import { logger } from "../libs/log";
 import { sendBgMsg } from "../libs/msg";
 import { isExt } from "../libs/client";
 import { normalizeStoredSetting } from "../libs/storage";
+import { setIconColorSnapshot, setIconStyleSnapshot } from "../styles/m3";
 import { cloneStorageValue, isSameStorageValue } from "../libs/storageEquality";
 
 // Share settings and their persistence operations with descendant components.
@@ -87,6 +90,25 @@ export function SettingProvider({ children, context }) {
     },
     [updateSetting]
   );
+
+  // 首个真实 setting 到达的那次渲染期间同步图标快照：图标分发器在子组件
+  // 渲染时经 useSyncExternalStore 读快照选图标，若等下面的 useLayoutEffect，
+  // 首次提交的 DOM 会先落默认档（md3/默认色）再被提交后修正。渲染期标记
+  // 保证仅同步一次；后续变化仍走 useLayoutEffect。
+  const syncedIconSnapshotRef = useRef(false);
+  if (!syncedIconSnapshotRef.current && setting) {
+    syncedIconSnapshotRef.current = true;
+    setIconStyleSnapshot(setting.iconStyle);
+    setIconColorSnapshot(setting.iconColor);
+  }
+
+  // 把图标外观键同步给 m3.js 快照 store（M3Theme/图标分发器经
+  // useSyncExternalStore 消费，避免它们直接 import 本模块拖入重依赖图）。
+  // useLayoutEffect：浏览器提交前生效，切换档位零闪烁。
+  useLayoutEffect(() => {
+    setIconStyleSnapshot(setting?.iconStyle);
+    setIconColorSnapshot(setting?.iconColor);
+  }, [setting?.iconStyle, setting?.iconColor]);
 
   const value = useMemo(
     () => ({

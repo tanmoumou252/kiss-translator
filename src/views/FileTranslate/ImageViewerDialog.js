@@ -205,11 +205,11 @@ export default function ImageViewerDialog({
                     color: "#fff",
                   },
                   "&.Mui-selected": {
-                    bgcolor: "primary.main",
-                    color: "#fff",
+                    bgcolor: "secondary.secondaryContainer",
+                    color: "secondary.onSecondaryContainer",
                     fontWeight: 600,
                     "&:hover": {
-                      bgcolor: "primary.dark",
+                      bgcolor: "secondary.secondaryContainer",
                     },
                   },
                 },

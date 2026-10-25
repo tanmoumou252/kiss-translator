@@ -5,7 +5,11 @@ import Typography from "@mui/material/Typography";
 import Accordion from "@mui/material/Accordion";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import {
+  ClearAllIcon,
+  EventNoteIcon,
+  ExpandMoreIcon,
+} from "../../components/icons";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import { useI18n } from "../../hooks/I18n";
@@ -19,8 +23,6 @@ import DownloadButton from "./DownloadButton";
 import UploadButton from "./UploadButton";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import ClearAllIcon from "@mui/icons-material/ClearAll";
-import EventNoteIcon from "@mui/icons-material/EventNote";
 import Alert from "@mui/material/Alert";
 import { isSingleChineseChar, isValidWord } from "../../libs/utils";
 import { logger } from "../../libs/log";

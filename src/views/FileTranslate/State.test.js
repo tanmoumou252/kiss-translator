@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { FileTranslationProvider, useFileTranslation } from "./State";
 import { getFileClient } from "../../fileTranslation/client";
 import { useTheme } from "@mui/material";
+import { setIconColorSnapshot } from "../../styles/m3";
 
 jest.mock("../../fileTranslation/client", () => ({ getFileClient: jest.fn() }));
 
@@ -57,6 +58,43 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   delete global.IS_REACT_ACT_ENVIRONMENT;
+});
+
+test("palette primary and secondary derive from the icon color snapshot hue instead of hardcoded defaults", async () => {
+  let primary = "";
+  let secondary = "";
+  let secondaryContainer = "";
+  function PaletteProbe() {
+    primary = useTheme().palette.primary.main;
+    secondary = useTheme().palette.secondary.main;
+    secondaryContainer = useTheme().palette.secondary.secondaryContainer;
+    return null;
+  }
+  // Provider mount effect unconditionally consumes getFileClient()（State.js
+  // mount 段 client.subscribe）；与本文件既有用例同规，先落桩再渲染。
+  const client = makeClient();
+  client.connect.mockReturnValue(new Promise(() => {}));
+  getFileClient.mockReturnValue(client);
+  setIconColorSnapshot("#ba9090");
+  try {
+    await act(async () =>
+      root.render(
+        <FileTranslationProvider>
+          <PaletteProbe />
+        </FileTranslationProvider>
+      )
+    );
+    // hue 0 浅色家族主色（calculateAdaptivePrimaryFamily(0, "light").primary 契约推导）。
+    expect(primary).toBe("#723b3b");
+    // 次强调随同一色相派生：palette.secondary.main 接可读的 secondary
+    // （calculateAdaptiveAccentFamilies(0, "light").secondary 契约推导），
+    // 禁落 MUI createTheme 默认 secondary 紫 #9c27b0。
+    expect(secondary).toBe("#664747");
+    // 容器色以扩展键暴露，供背景用途（ImageViewerDialog 选中态药丸）取用。
+    expect(secondaryContainer).toBe("#eae1e1");
+  } finally {
+    setIconColorSnapshot("#90b2ba");
+  }
 });
 
 test("StrictMode ignores an old connection failure and keeps notices below the title", async () => {

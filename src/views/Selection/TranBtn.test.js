@@ -2,6 +2,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import TranBtn from "./TranBtn";
+import { TranslateIcon as Md3TranslateIcon } from "../../components/icons/md3";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -47,9 +48,20 @@ test("keeps the selection FAB inside its themed render root", () => {
   expect(button.style.position).toBe("fixed");
   expect(button.style.left).toBe("20px");
   expect(button.style.top).toBe("30px");
-  expect(button.querySelector('[data-testid="TranslateRoundedIcon"]')).not.toBe(
-    null
-  );
+  // md3 迁移定位符（先改后迁：本断言在 TranBtn.js 换 md3 import 前为红）。
+  const md3Holder = document.createElement("div");
+  document.body.appendChild(md3Holder);
+  const md3Root = createRoot(md3Holder);
+  act(() => {
+    md3Root.render(<Md3TranslateIcon />);
+  });
+  const expectedD = md3Holder.querySelector("svg path").getAttribute("d");
+  act(() => md3Root.unmount());
+  md3Holder.remove();
+  expect(
+    button.querySelector('[data-testid="TranslateRoundedIcon"]')
+  ).not.toBe(null);
+  expect(button.querySelector("svg path").getAttribute("d")).toBe(expectedD);
   expect(button.innerHTML).not.toContain("#209CEE");
 
   const mouseDown = new MouseEvent("mousedown", {

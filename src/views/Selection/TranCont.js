@@ -4,9 +4,11 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
-import VolumeUpIcon from "@mui/icons-material/VolumeUp";
+import {
+  ContentCopyIcon,
+  ReplayRoundedIcon,
+  VolumeUpIcon,
+} from "../../components/icons";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiTranslate } from "../../apis";
@@ -465,6 +467,7 @@ export default function TranCont({
               text={trText}
               lang={toLang}
               title={i18n("read_aloud")}
+              stopTitle={i18n("stop_speaking")}
             />
           </>
         ) : (
@@ -701,6 +704,7 @@ export default function TranCont({
                   text={trText}
                   lang={toLang}
                   title={i18n("read_aloud")}
+                  stopTitle={i18n("stop_speaking")}
                 />
               </Stack>
               {(trText.trim() || resultHeightLock.lockedHeight != null) && (

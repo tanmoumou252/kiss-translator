@@ -5,8 +5,10 @@ import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
-import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
-import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import {
+  ContentCopyRoundedIcon,
+  DeleteOutlineRoundedIcon,
+} from "../../../components/icons";
 import { useI18n } from "../../../hooks/I18n";
 
 /**

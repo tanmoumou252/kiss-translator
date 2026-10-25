@@ -416,3 +416,45 @@ describe("StylesSetting textarea grip section", () => {
     view.container.remove();
   });
 });
+
+describe("StylesSetting icon style row", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  test("marks the icon style control so the narrow-screen wrap rule can hit", () => {
+    const view = renderStylesSetting();
+    // 行根带 kt-settings-row--inline 修饰类（窄屏换行规则的父选择器）。
+    const row = [...view.container.querySelectorAll(".kt-settings-row")].find(
+      (element) => element.textContent.includes("settings_icon_style")
+    );
+    expect(row).not.toBeNull();
+    expect(row.className).toContain("kt-settings-row--inline");
+    // 控制区 Box 带 icon-style-control 类，命中
+    // .kt-settings-row--inline .icon-style-control（Options/styles.js:19）。
+    const control = row.querySelector(".kt-settings-row__control");
+    expect(control).not.toBeNull();
+    expect(control.querySelector(".icon-style-control")).not.toBeNull();
+    view.cleanup();
+  });
+});
+
+describe("StylesSetting icon color hue entry", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+    delete mockSetting.iconColor;
+  });
+
+  // 护栏：滑轨读数确由 setting.iconColor 经 resolveIconHue 反解，而非回落
+  // store/默认。既有 mockSetting 无 iconColor 键（undefined → 归一 #90b2ba
+  // → 191.4°）；置非默认 #ba9090（hue 0），数据源若被误改即可判别。
+  test("derives the slider hue from setting.iconColor via the shared resolver", () => {
+    mockSetting.iconColor = "#ba9090";
+    const view = renderStylesSetting();
+    const row = view.container.querySelector(".kt-settings-icon-color");
+    expect(row).not.toBeNull();
+    expect(row.textContent).toContain("0.0°");
+    expect(row.textContent).not.toContain("191.4°");
+    view.cleanup();
+  });
+});

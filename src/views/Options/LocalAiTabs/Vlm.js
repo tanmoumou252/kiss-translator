@@ -12,7 +12,13 @@ import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import TextField from "@mui/material/TextField";
-import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
+import {
+  ContentCopyRoundedIcon,
+  PlayArrowRoundedIcon,
+  StopRoundedIcon,
+  TuneRoundedIcon,
+  UploadFileRoundedIcon,
+} from "../../../components/icons";
 import Chip from "@mui/material/Chip";
 import Alert from "@mui/material/Alert";
 import Stack from "@mui/material/Stack";
@@ -20,10 +26,6 @@ import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
-import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
-import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
-import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
-import StopRoundedIcon from "@mui/icons-material/StopRounded";
 import { sharedModelManager as manager } from "../../../localAi/core/modelManager";
 import { VlmClient } from "../../../localAi/core/vlmClient";
 import { CATALOG, getModelDisplayName } from "../../../localAi/core/catalog";

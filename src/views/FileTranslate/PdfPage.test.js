@@ -1,6 +1,7 @@
 /* eslint-disable testing-library/no-container, testing-library/no-unnecessary-act */
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { setIconColorSnapshot } from "../../styles/m3";
 import PdfPage from "./PdfPage";
 import { FILE_TRANSLATE_I18N } from "../../config/locales/fileTranslate";
 jest.mock("../../libs/pdf/pdfDocument", () => ({ PDFJS: {} }));
@@ -76,6 +77,48 @@ test("places layout labels above their regions and marks only the active recogni
       container.querySelector(".kt-pdf-layout-layer > div").title
     ).toContain("Click to exclude from recognition");
   } finally {
+    act(() => root.unmount());
+    container.remove();
+    globalThis.IntersectionObserver = observer;
+  }
+});
+
+test("region overlay consumes the snapshot accent family instead of a hardcoded blue", async () => {
+  const observer = globalThis.IntersectionObserver;
+  globalThis.IntersectionObserver = class {
+    observe() {}
+    disconnect() {}
+  };
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const pdf = {
+    getPage: jest.fn(async () => ({
+      getViewport: () => ({ width: 600, height: 800 }),
+    })),
+  };
+  const props = {
+    pdf,
+    number: 1,
+    width: 600,
+    zoom: 1,
+    showLayout: true,
+    regions: [{ id: "first", type: "paragraph", bbox: [10, 20, 80, 40] }],
+  };
+  setIconColorSnapshot("#ba9090");
+  try {
+    await act(async () => root.render(<PdfPage {...props} />));
+    const region = container.querySelector(".kt-pdf-layout-layer > div");
+    // 边框/角标随快照色相恒浅口径派生；序列化形态（hex 或 rgb）由
+    // cssstyle 决定，二者皆可。
+    expect(region.style.border).toMatch(/solid/);
+    expect(region.style.border).toMatch(/#723b3b|114, 59, 59/);
+    expect(region.style.backgroundColor).toMatch(/#723b3b|114, 59, 59/);
+    const label = region.querySelector("span");
+    expect(label.style.backgroundColor).toMatch(/#723b3b|114, 59, 59/);
+    expect(label.style.color).toMatch(/#fff|255, 255, 255/);
+  } finally {
+    setIconColorSnapshot("#90b2ba");
     act(() => root.unmount());
     container.remove();
     globalThis.IntersectionObserver = observer;

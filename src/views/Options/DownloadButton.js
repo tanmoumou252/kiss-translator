@@ -1,4 +1,4 @@
-import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import { FileDownloadIcon } from "../../components/icons";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { useState } from "react";
 import { logger } from "../../libs/log";

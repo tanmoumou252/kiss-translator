@@ -3246,6 +3246,15 @@ export const I18N = {
     tr: `Sesli oku`,
     vi: `Đọc to`,
   },
+  stop_speaking: {
+    zh: `停止朗读`,
+    en: `Stop`,
+    zh_TW: `停止朗讀`,
+    ja: `読み上げを停止`,
+    ko: `읽기 중지`,
+    tr: `Okumayı durdur`,
+    vi: `Dừng đọc`,
+  },
   swap_languages: {
     zh: `互换语言`,
     en: `Swap languages`,

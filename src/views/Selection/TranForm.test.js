@@ -1869,3 +1869,76 @@ describe("TranForm textarea grip style", () => {
     act(() => root.unmount());
   });
 });
+
+describe("TranForm submit/translate icon semantics (md3)", () => {
+  beforeEach(() => {
+    apiDict.mockReset();
+    document.body.innerHTML = "";
+  });
+
+  test("shows the send glyph on the submit action while editing", async () => {
+    const setText = jest.fn();
+    function EditableTranForm(props) {
+      const [text, updateText] = useState(props.text);
+      return (
+        <TranForm
+          {...props}
+          text={text}
+          setText={(value) => {
+            props.setText(value);
+            updateText(value);
+          }}
+        />
+      );
+    }
+    const { container, root } = renderTranForm(
+      {
+        text: "before",
+        setText,
+        simpleStyle: false,
+        isPlaygound: true,
+      },
+      { component: EditableTranForm }
+    );
+    await flushEffects();
+    const textarea = container.querySelector(
+      ".kt-playground-translator__source textarea:not([aria-hidden='true'])"
+    );
+    const setTextareaValue = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value"
+    ).set;
+    act(() => {
+      textarea.focus();
+      setTextareaValue.call(textarea, "after");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    const submitButton = container.querySelector('button[title="submit"]');
+    expect(submitButton).not.toBeNull();
+    expect(
+      submitButton.querySelector('[data-testid="SendIcon"]')
+    ).not.toBeNull();
+
+    act(() => root.unmount());
+  });
+
+  test("shows the translate glyph on the translate action when text is unchanged", async () => {
+    const { container, root } = renderTranForm({
+      text: "library",
+      simpleStyle: false,
+      isPlaygound: true,
+    });
+    await flushEffects();
+
+    const translateButton = container.querySelector(
+      'button[title="translate"]'
+    );
+    expect(translateButton).not.toBeNull();
+    expect(
+      translateButton.querySelector('[data-testid="TranslateIcon"]')
+    ).not.toBeNull();
+
+    act(() => root.unmount());
+  });
+});

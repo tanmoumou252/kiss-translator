@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useIconAccent } from "../../hooks/useIconAccent";
 import Box from "@mui/material/Box";
 import { hasCompleteCoordinates } from "../../fileTranslation/recognition";
 import { getRegionLabel } from "./layoutRegionLabels";
@@ -18,6 +19,8 @@ export default function ImageSourcePreview({
   excludeLabel,
   i18n,
 }) {
+  // 区域框/角标恒浅口径主色族：与悬浮层同源，见 useIconAccent。
+  const { accent } = useIconAccent();
   const container = useRef(null);
   const image = useRef(null);
   const [bounds, setBounds] = useState(null);
@@ -107,10 +110,10 @@ export default function ImageSourcePreview({
                     points={row.poly.map((point) => point.join(",")).join(" ")}
                     fill={
                       enabled
-                        ? "rgba(25, 118, 210, 0.08)"
+                        ? `${accent.primary}14`
                         : "rgba(158, 158, 158, 0.15)"
                     }
-                    stroke={enabled ? "#1976d2" : "#9e9e9e"}
+                    stroke={enabled ? accent.primary : "#9e9e9e"}
                     strokeDasharray={enabled ? undefined : "4 3"}
                     strokeWidth="1.5"
                     vectorEffect="non-scaling-stroke"
@@ -167,8 +170,10 @@ export default function ImageSourcePreview({
                     fontSize: "10px",
                     lineHeight: "12px",
                     padding: "1px 4px",
-                    backgroundColor: enabled ? "#1976d2" : "#757575",
-                    color: "#fff",
+                    backgroundColor: enabled
+                      ? accent.primary
+                      : "#757575",
+                    color: accent.onPrimary,
                     borderRadius: "3px 3px 0 0",
                     userSelect: "none",
                     whiteSpace: "nowrap",

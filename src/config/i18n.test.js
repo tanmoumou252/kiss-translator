@@ -189,3 +189,16 @@ test("disambiguates the panel pin and follow-selection labels", () => {
     "Закрепить панель (не скрывается при потере фокуса)"
   );
 });
+
+// TTS 播放态标题文案锁：三生产调用点（TranCont ×2、AiDictCont ×1）经
+// BrowserTtsBtn stopTitle 消费；RU 为独立覆盖层，缺键时英文兜底恒绿，须单锁。
+test("registers the stop_speaking label for TTS playing states", () => {
+  expect(I18N.stop_speaking.zh).toBe("停止朗读");
+  expect(I18N.stop_speaking.en).toBe("Stop");
+  expect(I18N.stop_speaking.zh_TW).toBe("停止朗讀");
+  expect(I18N.stop_speaking.ja).toBe("読み上げを停止");
+  expect(I18N.stop_speaking.ko).toBe("읽기 중지");
+  expect(I18N.stop_speaking.tr).toBe("Okumayı durdur");
+  expect(I18N.stop_speaking.vi).toBe("Dừng đọc");
+  expect(RU_I18N.stop_speaking).toBe("Остановить чтение");
+});

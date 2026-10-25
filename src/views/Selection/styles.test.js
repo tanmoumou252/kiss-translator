@@ -63,10 +63,10 @@ describe("selection Material 3 shapes", () => {
       /\.kt-tranbox-header__menu button\s*\{[^}]*border-radius:\s*8px;/
     );
     expect(TRANSLATION_PANEL_STYLES).toMatch(
-      /\.kt-tranbox-header \.MuiIconButton-root\[aria-pressed="true"\]:hover\s*\{[^}]*var\(--kt-onpric\) 8%/
+      /\.kt-tranbox-header \.MuiIconButton-root\[aria-pressed="true"\]:hover\s*\{[^}]*var\(--kt-onsecc\) 8%/
     );
     expect(TRANSLATION_PANEL_STYLES).toMatch(
-      /\.kt-tranbox-header \.MuiIconButton-root\[aria-pressed="true"\]\.Mui-focusVisible,[\s\S]*?\[aria-pressed="true"\]:active\s*\{[^}]*var\(--kt-onpric\) 10%/
+      /\.kt-tranbox-header \.MuiIconButton-root\[aria-pressed="true"\]\.Mui-focusVisible,[\s\S]*?\[aria-pressed="true"\]:active\s*\{[^}]*var\(--kt-onsecc\) 10%/
     );
     expect(TRANSLATION_PANEL_STYLES).not.toContain(
       ".KT-draggable-container .MuiStack-root { gap: 12px; }"

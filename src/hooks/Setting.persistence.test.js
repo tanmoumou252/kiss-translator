@@ -1,7 +1,13 @@
 /* eslint-disable testing-library/no-container, testing-library/no-unnecessary-act */
-import { act } from "react";
+import { act, useLayoutEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { CURRENT_SETTINGS_VERSION, DEFAULT_SETTING } from "../config";
+import { ExpandMoreIcon } from "../components/icons";
+import {
+  DEFAULT_ICON_STYLE,
+  getIconStyleSnapshot,
+  setIconStyleSnapshot,
+} from "../styles/m3";
 import { SettingProvider, useSetting } from "./Setting";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -90,5 +96,45 @@ describe("settings persistence results", () => {
     expect(settings.setting.darkMode).toBe("light");
     expect(mockSetting.darkMode).toBe(false);
     expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  test("first committed DOM already reflects the stored iconStyle without waiting for the post-commit sync", () => {
+    mockSetting = { ...mockSetting, iconStyle: "mui" };
+    let firstCommitSnapshot = "";
+    let firstCommitHtml = "";
+
+    function IconProbe() {
+      // 渲染期读取：同一提交里分发器选图标依据的快照。
+      firstCommitSnapshot = getIconStyleSnapshot();
+      const iconRef = useRef(null);
+      // 子组件 layout effect 先于 Provider 的 useLayoutEffect 执行，
+      // 此处读到的 DOM 即首次提交、未经提交后同步修正的版本。
+      useLayoutEffect(() => {
+        firstCommitHtml = iconRef.current?.outerHTML ?? "";
+      }, []);
+      return <ExpandMoreIcon ref={iconRef} />;
+    }
+
+    const localContainer = document.createElement("div");
+    document.body.appendChild(localContainer);
+    const localRoot = createRoot(localContainer);
+    try {
+      act(() =>
+        localRoot.render(
+          <SettingProvider context="popup">
+            <IconProbe />
+          </SettingProvider>
+        )
+      );
+
+      expect(firstCommitSnapshot).toBe("mui");
+      // md3 图标的 path 带 scale(0.025) 变换；MUI 经典图标没有。
+      expect(firstCommitHtml).not.toBe("");
+      expect(firstCommitHtml).not.toContain("scale(0.025)");
+    } finally {
+      act(() => localRoot.unmount());
+      localContainer.remove();
+      setIconStyleSnapshot(DEFAULT_ICON_STYLE);
+    }
   });
 });

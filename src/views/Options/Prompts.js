@@ -7,13 +7,15 @@ import {
   useRef,
   useState,
 } from "react";
-import AddIcon from "@mui/icons-material/Add";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import DeleteIcon from "@mui/icons-material/Delete";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import LockIcon from "@mui/icons-material/Lock";
-import SaveIcon from "@mui/icons-material/Save";
-import TextSnippetIcon from "@mui/icons-material/TextSnippet";
+import {
+  AddIcon,
+  ContentCopyIcon,
+  DeleteIcon,
+  KeyboardArrowDownIcon,
+  LockIcon,
+  SaveIcon,
+  TextSnippetIcon,
+} from "../../components/icons";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import List from "@mui/material/List";

@@ -638,7 +638,7 @@ export function Editor({ session }) {
                 <Stack direction="row" gap={1}>
                   <Button
                     variant="contained"
-                    color="secondary"
+                    color="primary"
                     startIcon={<AdsClickRoundedIcon />}
                     disabled={busy}
                     onClick={() => session.pick()}

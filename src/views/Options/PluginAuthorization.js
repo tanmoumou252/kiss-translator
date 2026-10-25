@@ -11,7 +11,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { ExpandMoreIcon } from "../../components/icons";
 import ApiProviderIcon from "../../components/ApiProviderIcon";
 import { useConfirm } from "../../hooks/Confirm";
 import { browser } from "../../libs/browser";

@@ -138,8 +138,8 @@ describe("persistent global feature segments", () => {
     const enabledRule = getRuleBodies(
       '.kt-popup-global-feature[aria-pressed="true"]'
     )[0];
-    expect(enabledRule).toContain("background: var(--kt-pric)");
-    expect(enabledRule).toContain("color: var(--kt-onpric)");
+    expect(enabledRule).toContain("background: var(--kt-secc)");
+    expect(enabledRule).toContain("color: var(--kt-onsecc)");
     expect(getRuleBodies(".kt-popup-global-feature")[0]).toContain(
       "color: var(--kt-onv)"
     );

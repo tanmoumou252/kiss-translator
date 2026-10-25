@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useIconAccent } from "../../hooks/useIconAccent";
 import CircularProgress from "@mui/material/CircularProgress";
 import { PDFJS } from "../../libs/pdf/pdfDocument";
 import { getRegionLabel } from "./layoutRegionLabels";
@@ -19,6 +20,8 @@ export default function PdfPage({
   recognizingRegionId,
   i18n,
 }) {
+  // 区域框/角标恒浅口径主色族：与悬浮层同源，见 useIconAccent。
+  const { accent } = useIconAccent();
   const container = useRef(null),
     canvas = useRef(null),
     text = useRef(null),
@@ -188,10 +191,10 @@ export default function PdfPage({
                   pointerEvents: "auto",
                   cursor: disabled ? "default" : "pointer",
                   border: isEnabled
-                    ? "1.5px solid #1976d2"
+                    ? `1.5px solid ${accent.primary}`
                     : "1.5px dashed #9e9e9e",
                   backgroundColor: isEnabled
-                    ? "rgba(25, 118, 210, 0.08)"
+                    ? `${accent.primary}14`
                     : "rgba(158, 158, 158, 0.15)",
                   boxSizing: "border-box",
                   transition: "all 0.15s ease",
@@ -209,8 +212,10 @@ export default function PdfPage({
                     fontSize: "10px",
                     lineHeight: "12px",
                     padding: "1px 4px",
-                    backgroundColor: isEnabled ? "#1976d2" : "#757575",
-                    color: "#fff",
+                    backgroundColor: isEnabled
+                      ? accent.primary
+                      : "#757575",
+                    color: accent.onPrimary,
                     borderRadius: "3px 3px 0 0",
                     userSelect: "none",
                     whiteSpace: "nowrap",

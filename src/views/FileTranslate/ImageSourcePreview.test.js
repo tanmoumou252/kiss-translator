@@ -1,6 +1,7 @@
 /* eslint-disable testing-library/no-container, testing-library/no-unnecessary-act */
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { setIconColorSnapshot } from "../../styles/m3";
 import ImageSourcePreview from "./ImageSourcePreview";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -42,6 +43,7 @@ describe("ImageSourcePreview regions", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    setIconColorSnapshot("#90b2ba");
     globalThis.ResizeObserver = originalObserver;
   });
 
@@ -77,6 +79,7 @@ describe("ImageSourcePreview regions", () => {
   ])(
     "maps %i x %i source coordinates and updates rendered bounds on resize",
     (width, height) => {
+      setIconColorSnapshot("#ba9090");
       render();
       const image = measure(width, height);
       let imageRect = { left: 30, top: 40, width: 200, height: 100 };
@@ -94,8 +97,19 @@ describe("ImageSourcePreview regions", () => {
       expect(labels[0].textContent).toBe("正文");
       expect(labels[1].textContent).toBe("标题 (排除)");
       expect(getComputedStyle(labels[0]).fontSize).toBe("10px");
+      // 快照 #ba9090（hue 0）恒浅口径家族：角标深调底 + 白字
+      // （calculateAdaptivePrimaryFamily(0, "light") 契约推导）；
+      // 禁再回落硬编码蓝 rgb(25, 118, 210)。
       expect(getComputedStyle(labels[0]).backgroundColor).toBe(
-        "rgb(25, 118, 210)"
+        "rgb(114, 59, 59)"
+      );
+      expect(getComputedStyle(labels[0]).color).toBe("rgb(255, 255, 255)");
+      // 8 位 Hex 尾缀 14 ≈ 0.08 透明度填充 + 深调描边（字面量断言）。
+      expect(container.querySelector("polygon").getAttribute("fill")).toBe(
+        "#723b3b14"
+      );
+      expect(container.querySelector("polygon").getAttribute("stroke")).toBe(
+        "#723b3b"
       );
       expect(container.querySelector("polygon").getAttribute("points")).toBe(
         "10,20 100,20 100,60 10,60"

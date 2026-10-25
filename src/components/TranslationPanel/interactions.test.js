@@ -2,7 +2,7 @@
 import { act, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { apiTranslate } from "../../apis";
-import { speak } from "../../libs/speech";
+import { speak, stopSpeech } from "../../libs/speech";
 import TranslationPanelContent from "./Content";
 import TranslationPanelHeader from "./Header";
 import TranslationPanelSurface from "./Surface";
@@ -21,6 +21,7 @@ jest.mock("../../libs/detect", () => ({
 jest.mock("../../libs/speech", () => ({
   canSpeak: () => true,
   speak: jest.fn(() => true),
+  stopSpeech: jest.fn(),
 }));
 jest.mock("../../hooks/Audio", () => ({ useAudio: jest.fn() }));
 jest.mock("query-string", () => ({ stringify: jest.fn() }));
@@ -155,6 +156,7 @@ describe.each(["document", "shadow"])(
       });
       apiTranslate.mockReset().mockResolvedValue({ trText: "First result" });
       speak.mockReset().mockReturnValue(true);
+      stopSpeech.mockReset();
     });
 
     afterEach(() => {
@@ -391,7 +393,10 @@ describe.each(["document", "shadow"])(
       });
       expect(activeElement()).toBe(speech);
       expect(speech.disabled).toBe(false);
-      expect(speech.getAttribute("aria-disabled")).toBe("true");
+      // 停止语义生效后朗读期间按钮可操作，aria-disabled 恒为 "false"；
+      // 朗读中的再次激活取消原生 TTS 而非重复 speak。
+      expect(speech.getAttribute("aria-disabled")).toBe("false");
+      expect(stopSpeech).toHaveBeenCalledTimes(1);
       expect(speak).toHaveBeenCalledTimes(1);
       expect(speak.mock.calls[0][0]).toBe("First result");
       expect(apiTranslate).toHaveBeenCalledTimes(1);

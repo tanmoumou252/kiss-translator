@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import ReaderAlert from "./ReaderAlert";
 import Box from "@mui/material/Box";
@@ -19,6 +20,13 @@ import { I18N, UI_LANGS } from "../../config/i18n";
 import { OPT_STYLE_ALL } from "../../config/styles";
 import { builtinStylesMap } from "../../libs/style";
 import { useHomepageSettings } from "../../homepage/useHomepageSettings";
+import {
+  calculateAdaptiveAccentFamilies,
+  calculateAdaptivePrimaryFamily,
+  getIconColorSnapshot,
+  resolveIconHue,
+  subscribeIconColor,
+} from "../../styles/m3";
 
 const Context = createContext(null);
 const LANGUAGE_STORAGE_KEY = "kiss-file-translate-lang";
@@ -47,6 +55,13 @@ export function useFileTranslation() {
 
 export function FileTranslationProvider({ children }) {
   const preferences = useHomepageSettings();
+  // 图标色相快照：与 M3Theme 同源（m3.js 快照 store，零重依赖）；
+  // 入口 FileTranslatePage 已挂 SettingProvider，其 useLayoutEffect
+  // 写入快照（生产唯一写入点），页面主色随用户色相管线派生，不再硬编码。
+  const iconColor = useSyncExternalStore(
+    subscribeIconColor,
+    getIconColorSnapshot
+  );
   const [context, setContext] = useState(EMPTY);
   const [session, setSession] = useState(null);
   const [cachedLanguage, setCachedLanguage] = useState(readLanguage);
@@ -291,10 +306,37 @@ export function FileTranslationProvider({ children }) {
     ],
     [context.styles, i18n]
   );
+  const accentFamily = useMemo(
+    () =>
+      calculateAdaptivePrimaryFamily(
+        resolveIconHue(iconColor),
+        preferences.themeMode
+      ),
+    [iconColor, preferences.themeMode]
+  );
+  const secondaryFamily = useMemo(
+    () =>
+      calculateAdaptiveAccentFamilies(
+        resolveIconHue(iconColor),
+        preferences.themeMode
+      ),
+    [iconColor, preferences.themeMode]
+  );
   const theme = useMemo(
     () =>
       createTheme({
-        palette: { mode: preferences.themeMode, primary: { main: "#0B57D0" } },
+        palette: {
+          mode: preferences.themeMode,
+          primary: { main: accentFamily.primary },
+          secondary: {
+            // main 用可读的次强调色（前景语义），容器色以扩展键暴露，
+            // 背景用途（ImageViewerDialog 选中态药丸）走 secondaryContainer。
+            main: secondaryFamily.secondary,
+            contrastText: secondaryFamily.onSecondary,
+            secondaryContainer: secondaryFamily.secondaryContainer,
+            onSecondaryContainer: secondaryFamily.onSecondaryContainer,
+          },
+        },
         shape: { borderRadius: 4 },
         typography: { button: { textTransform: "none" } },
         components: {
@@ -337,7 +379,7 @@ export function FileTranslationProvider({ children }) {
           },
         },
       }),
-    [preferences.themeMode]
+    [preferences.themeMode, accentFamily, secondaryFamily]
   );
   const openSettings = useCallback((path = "") => {
     const page = path.includes("local-ai")

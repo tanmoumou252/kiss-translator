@@ -1,10 +1,10 @@
-import ArrowDropDownRoundedIcon from "@mui/icons-material/ArrowDropDownRounded";
-import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
-import CheckBoxOutlineBlankRoundedIcon from "@mui/icons-material/CheckBoxOutlineBlankRounded";
-import CheckBoxRoundedIcon from "@mui/icons-material/CheckBoxRounded";
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
-import SwapVertRoundedIcon from "@mui/icons-material/SwapVertRounded";
+import { ArrowDropDownRoundedIcon } from "../../components/icons";
+import { CheckRoundedIcon } from "../../components/icons";
+import { CheckBoxOutlineBlankRoundedIcon } from "../../components/icons";
+import { CheckBoxRoundedIcon } from "../../components/icons";
+import { CloseRoundedIcon } from "../../components/icons";
+import { ReplayRoundedIcon } from "../../components/icons";
+import { SwapVertRoundedIcon } from "../../components/icons";
 import MenuItem from "@mui/material/MenuItem";
 import {
   useCallback,

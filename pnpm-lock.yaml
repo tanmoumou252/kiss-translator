@@ -144,6 +144,9 @@ importers:
       '@babel/preset-env':
         specifier: ^7.22.20
         version: 7.28.5(@babel/core@7.28.5)
+      '@material-symbols/svg-600':
+        specifier: ^0.48.1
+        version: 0.48.1
       '@types/chrome':
         specifier: 0.0.312
         version: 0.0.312
@@ -1535,6 +1538,9 @@ packages:
 
   '@leichtgewicht/ip-codec@2.0.5':
     resolution: {integrity: sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw==}
+
+  '@material-symbols/svg-600@0.48.1':
+    resolution: {integrity: sha512-L5kXsqktZmxC+FVYA/h/81knK+RVS7dvwg+WET0lBdW9gv+J6Ya1zISs1SFEOVelr26xcEetEufWy5x8Hhb/6Q==}
 
   '@mui/base@5.0.0-beta.40':
     resolution: {integrity: sha512-I/lGHztkCzvwlXpjD2+SNmvNQvB4227xBXhISPjEaJUXGImOQ9f3D2Yj/T3KasSI/h0MLWy74X0J6clhPmsRbQ==}
@@ -8922,6 +8928,8 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.5
 
   '@leichtgewicht/ip-codec@2.0.5': {}
+
+  '@material-symbols/svg-600@0.48.1': {}
 
   '@mui/base@5.0.0-beta.40(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:

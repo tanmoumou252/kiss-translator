@@ -466,7 +466,8 @@ test("the editor keeps its M3 font, filled fields and pill buttons on small-root
     await render();
     const themeRoot = container.querySelector(".kt-m3-root");
     expect(themeRoot.dataset.theme).toBe("light");
-    expect(themeRoot.style.getPropertyValue("--kt-pri")).toBe("#0B57D0");
+    // 默认 hue 191.4 浅色主题 primary（calculateAdaptivePrimaryFamily(191.4, "light").primary 契约推导）。
+    expect(themeRoot.style.getPropertyValue("--kt-pri")).toBe("#3b6872");
     const save = container.querySelector('[aria-label="rule_editor_save"]');
     expect(getComputedStyle(save).fontFamily).toContain("Google Sans");
     expect(getComputedStyle(save).fontSize).toBe("13px");
@@ -491,6 +492,17 @@ test.each([false, true])(
     expect(session.showWhole).toHaveBeenCalledTimes(1);
   }
 );
+
+test("the pick action is a primary-emphasis button, not secondary", async () => {
+  Object.assign(session.getSnapshot(), { inspectorOpen: true });
+  await render();
+  const pick = [...container.querySelectorAll("button")].find(
+    (element) => element.textContent === "rule_editor_pick"
+  );
+  expect(pick).toBeDefined();
+  expect(pick.className).toContain("MuiButton-containedPrimary");
+  expect(pick.className).not.toContain("MuiButton-containedSecondary");
+});
 
 test("manual addition shows only the selector input and save action", async () => {
   Object.assign(session.getSnapshot(), { inspectorOpen: true, input: "" });

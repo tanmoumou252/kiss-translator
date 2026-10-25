@@ -7,10 +7,8 @@ import MenuItem from "@mui/material/MenuItem";
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
-import DoneIcon from "@mui/icons-material/Done";
-import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
+import { ContentPasteIcon, SendIcon, TranslateIcon } from "../../components/icons";
 import CircularProgress from "@mui/material/CircularProgress";
-import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import { useI18n } from "../../hooks/I18n";
 import {
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
@@ -973,7 +971,7 @@ export default function TranForm({
                           title={i18n("submit")}
                           aria-label={i18n("submit")}
                         >
-                          <DoneIcon fontSize="inherit" />
+                          <SendIcon fontSize="inherit" />
                         </IconButton>
                       ) : text ? (
                         /* Show the copy action when text is present. */
@@ -1000,7 +998,7 @@ export default function TranForm({
                           title={i18n("translate")}
                           aria-label={i18n("translate")}
                         >
-                          <ReplayRoundedIcon fontSize="inherit" />
+                          <TranslateIcon fontSize="inherit" />
                         </IconButton>
                       )}
                     </Stack>
