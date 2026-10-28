@@ -2,7 +2,7 @@ name: Sync Upstream & Spawn Staging Branch
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # 在默认分支 hub 上永久生效
+    - cron: '0 */2 * * *' # 在默认分支 hub 上永久生效
   workflow_dispatch:
     inputs:
       upstream_repo:
