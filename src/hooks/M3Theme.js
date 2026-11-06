@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useMemo, useLayoutEffect } from "react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { CssBaseline, GlobalStyles } from "@mui/material";
 import { useDarkMode } from "./ColorMode";
@@ -44,9 +44,11 @@ export default function M3Theme({
 
   // 图标风格快照同步：入口根挂载的 M3Theme 把 setting.iconStyle 推入分发
   // 器订阅的 store（setIconStyleSnapshot 内部经 resolveIconStyle 归一，
-  // 设置键未上线时安全回退缺省 lucide）。
+  // 设置键未上线时安全回退缺省 lucide）。useLayoutEffect：快照在浏览器
+  // 绘制前同步落定，iconStyle 变化时订阅分发器在首次绘制即呈现新风格，
+  // 不闪旧风格帧。
   const { setting } = useSetting();
-  useEffect(() => {
+  useLayoutEffect(() => {
     setIconStyleSnapshot(setting?.iconStyle);
   }, [setting?.iconStyle]);
 

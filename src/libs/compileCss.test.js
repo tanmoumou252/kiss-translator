@@ -168,6 +168,28 @@ describe("compileCss mid-selector & preservation", () => {
   });
 });
 
+describe("compileCss raw newline inside a string", () => {
+  test("rejects an unescaped newline inside a string", () => {
+    // CSS 字符串不允许未转义的换行（规范 bad-string token）：原样保留会
+    // 发射跨行字符串值的非法 CSS，整份判无效（与未闭合字符串同口径）
+    const { css, valid } = compileCss("kt-scope-x", 'content: "a\nb"');
+    expect(valid).toBe(false);
+    expect(css).toBe("");
+  });
+
+  test("rejects carriage return and form feed inside a string", () => {
+    expect(compileCss("kt-scope-x", 'content: "a\rb"').valid).toBe(false);
+    expect(compileCss("kt-scope-x", 'content: "a\fb"').valid).toBe(false);
+  });
+
+  test("keeps an escaped line continuation inside a string valid", () => {
+    // 转义续行（\ 后跟换行）在转义对分支整体保留，不触发无效闸
+    const { css, valid } = compileCss("kt-scope-x", 'content: "a\\\nb"');
+    expect(valid).toBe(true);
+    expect(css).toBe('.kt-scope-x .kt-style-demo { content: "a\\\nb" }');
+  });
+});
+
 describe("sanitizeScopeSlug", () => {
   test("maps safe slugs identically", () => {
     // [A-Za-z0-9_-] 逐字符恒等：现有夹具类名（kt-scope-custom-a 等）不变

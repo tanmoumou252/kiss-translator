@@ -87,7 +87,18 @@ export function compileCss(scopeClass, raw) {
       }
       stripped += ch;
       masked += "\u0000";
-      if (ch === quote) quote = "";
+      if (ch === quote) {
+        quote = "";
+        i += 1;
+        continue;
+      }
+      // CSS 字符串不允许未转义的换行/回车/换页（规范 bad-string token）：
+      // 原样保留会发射跨行字符串值的非法 CSS，整份判无效（与未闭合字符串
+      // 同口径）。转义续行（\<newline>）已在上方转义对分支整体保留，不受
+      // 本闸影响。
+      if (ch === "\n" || ch === "\r" || ch === "\f") {
+        return { css: "", valid: false };
+      }
       i += 1;
       continue;
     }
