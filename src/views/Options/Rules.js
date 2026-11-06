@@ -1,4 +1,5 @@
 import TerminologySelect from "./TerminologySelect";
+import PopupStylePreview from "../Popup/PopupStylePreview";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -71,7 +72,11 @@ import { logger } from "../../libs/log";
 import { useApiList } from "../../hooks/Api";
 import ShowMoreButton from "./ShowMoreButton";
 import { useConfirm } from "../../hooks/Confirm";
-import { useAllTextStyles } from "../../hooks/CustomStyles";
+import {
+  useAllTextStyles,
+  STYLE_SOURCE_CUSTOM,
+} from "../../hooks/CustomStyles";
+import { compileCss } from "../../libs/compileCss";
 import {
   highlightSettingsTarget,
   useRevealSearchTarget,
@@ -79,6 +84,75 @@ import {
 } from "./SettingsSearchTarget";
 import { RuleDraftProvider, useRuleDraft, useRuleDrafts } from "./RuleDrafts";
 import { isSameStorageValue } from "../../libs/storageEquality";
+
+// 译文样式下拉选项：名称左 + 样式预览右的行内两栏（参照 StylesSetting.js
+// gripOptionLabel 的节点 label 先例）。与 PopupCont 的 builtin-only 口径
+//（getCompactStylePreviewCode）有意不同：下拉选项需展示自定义样式的真实
+// 效果——但 custom 项的原始 styleCode 禁止未经校验直进 emotion（"&, body"
+// 类选择器列表会泄漏全局规则到 Options 页），必须先经 compileCss 作用域
+// 编译与校验（与 StylesSetting 卡片演示同口径），校验失败回退无样式纯文本。
+function textStyleOptionLabel(item, i18n) {
+  const isCustom = item.source === STYLE_SOURCE_CUSTOM;
+  const scopeClass = `kt-scope-${item.styleSlug}`;
+  const compiled = isCustom ? compileCss(scopeClass, item.styleCode) : null;
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 1,
+        minWidth: 0,
+        width: "100%",
+      }}
+    >
+      <Typography
+        component="span"
+        sx={{
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {item.styleName}
+      </Typography>
+      {/* 预览隔离闸：预览根 span 直接承载用户 styleCode（含
+          position:fixed/inset/z-index 类危险声明），裸挂会把预览撑成视口
+          覆盖层——外层 contain:paint 使其成为 fixed 后代包含块并裁剪越缘
+          （与 StylesSetting .kt-style-card__demo 沙箱同口径）。aria-hidden：
+          MUI Select 关闭态触发框会渲染选中项 children，预览及其
+          translated_text 不得进入选择框可访问名称，朗读只保留样式名 */}
+      <Box
+        component="span"
+        aria-hidden="true"
+        className={isCustom ? scopeClass : undefined}
+        sx={{
+          contain: "paint",
+          minWidth: 0,
+          flexShrink: 0,
+          maxWidth: "45%",
+        }}
+      >
+        {isCustom ? (
+          <>
+            {compiled.valid && <style>{compiled.css}</style>}
+            <span className={compiled.valid ? "kt-style-demo" : undefined}>
+              {i18n("translated_text")}
+            </span>
+          </>
+        ) : (
+          <PopupStylePreview
+            styleSlug={item.styleSlug}
+            previewCode={item.styleCode}
+            label={i18n("translated_text")}
+          />
+        )}
+      </Box>
+    </Box>
+  );
+}
 
 let disabledSubRuleWriteQueue = Promise.resolve();
 
@@ -921,7 +995,7 @@ function RuleFields({ rule, rules, setShow, setKeyword, draftId }) {
                 {GlobalItem}
                 {allTextStyles.map((item) => (
                   <MenuItem key={item.styleSlug} value={item.styleSlug}>
-                    {item.styleName}
+                    {textStyleOptionLabel(item, i18n)}
                   </MenuItem>
                 ))}
               </TextField>

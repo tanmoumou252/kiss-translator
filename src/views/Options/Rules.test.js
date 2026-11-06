@@ -76,10 +76,30 @@ jest.mock("../../hooks/Api", () => ({
 }));
 
 jest.mock("../../hooks/CustomStyles", () => ({
+  STYLE_SOURCE_CUSTOM: "custom",
   useAllTextStyles: () => ({
     allTextStyles: [
-      { styleSlug: "style_none", styleName: "style_none" },
-      { styleSlug: "marker", styleName: "marker" },
+      {
+        styleSlug: "style_none",
+        styleName: "style_none",
+        styleCode: "",
+        source: "builtin",
+        isBuiltin: true,
+      },
+      {
+        styleSlug: "marker",
+        styleName: "marker",
+        styleCode: "color: red;",
+        source: "custom",
+        isBuiltin: false,
+      },
+      {
+        styleSlug: "broken",
+        styleName: "broken",
+        styleCode: "body, html { color:blue",
+        source: "custom",
+        isBuiltin: false,
+      },
     ],
   }),
 }));
@@ -892,6 +912,92 @@ describe("Options Rules global tab", () => {
     expect(view.container.querySelector(".MuiGrid-grid-lg-3")).toBeNull();
 
     view.unmount();
+  });
+
+  test("renders style previews inside the text style dropdown options", async () => {
+    const view = renderRules();
+
+    const input = view.container.querySelector('input[name="textStyle"]');
+    const select = input.parentElement.querySelector('[role="combobox"]');
+    await act(async () => {
+      select.dispatchEvent(
+        new MouseEvent("mousedown", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+        })
+      );
+    });
+
+    // 下拉经 portal 挂 document.body；默认夹具为全局规则（pattern="*"），
+    // GlobalItem 仅在非全局规则下渲染，此处恰为三个样式项
+    const options = [...document.body.querySelectorAll('[role="option"]')];
+    expect(options).toHaveLength(3);
+
+    const previewOf = (option) =>
+      // 取文档序最内层的演示叶节点：custom 失败项的包裹 span（含 scope
+      // 类）textContent 亦为 translated_text，必须跳过取叶子
+      [...option.querySelectorAll("span")]
+        .filter((span) => span.textContent === "translated_text")
+        .pop();
+
+    // 样式项：名称文案 + 预览节点（style_none 为 builtin 纯文本预览；
+    // marker 为 custom 且代码合法 → compileCss 作用域编译路径；broken 为
+    // custom 且代码括号失衡 → 校验失败回退无样式纯文本）
+    const noneOption = options.find((option) =>
+      option.textContent.includes("style_none")
+    );
+    const markerOption = options.find((option) =>
+      option.textContent.includes("marker")
+    );
+    const brokenOption = options.find((option) =>
+      option.textContent.includes("broken")
+    );
+    expect(noneOption).toBeDefined();
+    expect(markerOption).toBeDefined();
+    expect(brokenOption).toBeDefined();
+    expect(previewOf(noneOption)).toBeDefined();
+    expect(previewOf(markerOption)).toBeDefined();
+    expect(previewOf(brokenOption)).toBeDefined();
+
+    // custom 合法项：经 compileCss 作用域编译，<style> 产物整体落在
+    // kt-scope-<slug> 作用域之下，演示 span 挂 kt-style-demo 演示类
+    expect(previewOf(markerOption).className).toBe("kt-style-demo");
+    const markerStyle = markerOption.querySelector("style");
+    expect(markerStyle.textContent).toBe(
+      ".kt-scope-marker .kt-style-demo { color: red; }"
+    );
+
+    // custom 校验失败项：回退无样式纯文本——无 <style>、无演示类，
+    // 原始代码绝不直进 emotion
+    expect(previewOf(brokenOption).className).toBe("");
+    expect(brokenOption.querySelector("style")).toBeNull();
+
+    // 关闭态触发框：MUI SelectInput 渲染选中 MenuItem 的 children 节点
+    // （displaySingle = child.props.children，浏览器探针实测证实），
+    // 故名称文案与预览节点同时在位——锁定该行为防 MUI 版本漂移。
+    await act(async () => {
+      markerOption.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flushEffects();
+    expect(select.textContent).toContain("marker");
+    expect(
+      [...select.querySelectorAll("span")].some(
+        (span) => span.textContent === "translated_text"
+      )
+    ).toBe(true);
+    // 选中值落库到隐藏 input（表单语义），与触发框呈现解耦
+    expect(input.value).toBe("marker");
+    // 预览 a11y 隔离闸：aria-hidden 包裹层使预览及其 translated_text 不进
+    // 入关闭态选择框的可访问名称，朗读只保留样式名称
+    const closedPreview = [...select.querySelectorAll("span")].find(
+      (span) => span.textContent === "translated_text"
+    );
+    expect(closedPreview).toBeDefined();
+    expect(closedPreview.closest('[aria-hidden="true"]')).not.toBeNull();
+
+    // 清理由文件级 afterEach（renderedViews 统一 unmount）承接，成功与
+    // 失败路径均覆盖，此处不再重复清理
   });
 });
 

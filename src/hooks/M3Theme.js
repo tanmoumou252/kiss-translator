@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { CssBaseline, GlobalStyles } from "@mui/material";
 import { useDarkMode } from "./ColorMode";
@@ -9,9 +9,11 @@ import {
   M3_GLOBAL_CSS,
   resolveM3Colors,
   resolveM3ThemeMode,
+  setIconStyleSnapshot,
 } from "../styles/m3";
 import { getMuiSwitchStyleOverrides } from "./themeStyles";
 import { useSystemDarkPreference } from "./SystemColorScheme";
+import { useSetting } from "./Setting";
 
 export { getMuiSwitchStyleOverrides } from "./themeStyles";
 
@@ -39,6 +41,14 @@ export default function M3Theme({
     () => resolveM3Colors(resolvedMode, M3_BRAND_COLOR),
     [resolvedMode]
   );
+
+  // 图标风格快照同步：入口根挂载的 M3Theme 把 setting.iconStyle 推入分发
+  // 器订阅的 store（setIconStyleSnapshot 内部经 resolveIconStyle 归一，
+  // 设置键未上线时安全回退缺省 lucide）。
+  const { setting } = useSetting();
+  useEffect(() => {
+    setIconStyleSnapshot(setting?.iconStyle);
+  }, [setting?.iconStyle]);
 
   const theme = useMemo(() => {
     const color = colors;
