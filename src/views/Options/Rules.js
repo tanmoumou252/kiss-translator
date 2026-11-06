@@ -76,7 +76,7 @@ import {
   useAllTextStyles,
   STYLE_SOURCE_CUSTOM,
 } from "../../hooks/CustomStyles";
-import { compileCss } from "../../libs/compileCss";
+import { compileCss, sanitizeScopeSlug } from "../../libs/compileCss";
 import {
   highlightSettingsTarget,
   useRevealSearchTarget,
@@ -91,10 +91,30 @@ import { isSameStorageValue } from "../../libs/storageEquality";
 // 效果——但 custom 项的原始 styleCode 禁止未经校验直进 emotion（"&, body"
 // 类选择器列表会泄漏全局规则到 Options 页），必须先经 compileCss 作用域
 // 编译与校验（与 StylesSetting 卡片演示同口径），校验失败回退无样式纯文本。
+// 预览编译结果有界缓存：键 = scopeClass + \u0000 + styleCode（键即全部
+// 输入，无失效难题），容量上限 100、FIFO 淘汰。下拉每次渲染对全部
+// custom 项重跑 compileCss 的开销由此吸收；invalid 判定同样被缓存——
+// 键变化即重编，语义与直连编译一致。导出供测试锁定命中/淘汰语义。
+export const PREVIEW_COMPILE_CACHE_LIMIT = 100;
+export const previewCompileCache = new Map();
+export function cachedCompileCss(scopeClass, styleCode) {
+  const key = `${scopeClass}\u0000${styleCode}`;
+  const cached = previewCompileCache.get(key);
+  if (cached) return cached;
+  const result = compileCss(scopeClass, styleCode);
+  previewCompileCache.set(key, result);
+  if (previewCompileCache.size > PREVIEW_COMPILE_CACHE_LIMIT) {
+    previewCompileCache.delete(previewCompileCache.keys().next().value);
+  }
+  return result;
+}
+
 function textStyleOptionLabel(item, i18n) {
   const isCustom = item.source === STYLE_SOURCE_CUSTOM;
-  const scopeClass = `kt-scope-${item.styleSlug}`;
-  const compiled = isCustom ? compileCss(scopeClass, item.styleCode) : null;
+  const scopeClass = `kt-scope-${sanitizeScopeSlug(item.styleSlug)}`;
+  const compiled = isCustom
+    ? cachedCompileCss(scopeClass, item.styleCode)
+    : null;
   return (
     <Box
       component="span"
@@ -138,8 +158,10 @@ function textStyleOptionLabel(item, i18n) {
         {isCustom ? (
           <>
             {compiled.valid && <style>{compiled.css}</style>}
+            {/* 编译失败项渲染显式"无法预览"提示而非普通文本演示——避免
+                用户把无样式文本误认成样式的真实效果 */}
             <span className={compiled.valid ? "kt-style-demo" : undefined}>
-              {i18n("translated_text")}
+              {i18n(compiled.valid ? "translated_text" : "css_invalid")}
             </span>
           </>
         ) : (

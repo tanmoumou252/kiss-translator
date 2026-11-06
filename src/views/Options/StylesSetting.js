@@ -34,7 +34,7 @@ import { useSetting } from "../../hooks/Setting";
 import { GripGlyph } from "../../components/TextareaResizeGrip";
 import { TEXTAREA_GRIP_STYLE_KEYS } from "../../config/textareaGripStyles";
 import { useTextareaGripStyle } from "../../hooks/useTextareaHeightLock";
-import { compileCss } from "../../libs/compileCss";
+import { compileCss, sanitizeScopeSlug } from "../../libs/compileCss";
 import {
   SettingsCard,
   SettingsRow,
@@ -145,7 +145,7 @@ function StyleCard({
 }) {
   const i18n = useI18n();
   const confirm = useConfirm();
-  const scopeClass = `kt-scope-${customStyle.styleSlug}`;
+  const scopeClass = `kt-scope-${sanitizeScopeSlug(customStyle.styleSlug)}`;
   // 通用拉伸手柄接线（与 Prompts/TranForm 等五个接入视图同一体系）：
   // 会话高度锁按卡片 slug 隔离，hidden 样式切换时自动释放。
   const gripStyle = useTextareaGripStyle();
@@ -245,7 +245,13 @@ function StyleCard({
           className={`kt-style-card__demo ${
             compiled.valid ? "" : "is-invalid"
           }`}
-          title={compiled.valid ? i18n("style_active") : i18n("css_invalid")}
+          title={
+            compiled.valid
+              ? compiled.css
+                ? i18n("style_active")
+                : undefined
+              : i18n("css_invalid")
+          }
         >
           <style>{compiled.css}</style>
           <span className="kt-style-demo">{i18n("translated_text")}</span>
@@ -318,7 +324,7 @@ function StyleCard({
               size="small"
               variant="contained"
               onClick={handleSave}
-              disabled={!isModified}
+              disabled={!isModified || !compiled.valid}
             >
               {i18n("save")}
             </Button>
@@ -543,6 +549,27 @@ export default function StylesSetting() {
   // 持久化内容变更才清对应草稿（回落 customStyle），引用抖动不清稿：
   // 快照与上次同步一致即跳过；首跑时 drafts 为空、清删为 no-op。
   useEffect(() => {
+    // 清理已消失 slug 的草稿与快照：外部同步删除样式后，残留草稿会在同
+    // slug 恢复时陈稿复现（回落 customStyle 失效）；快照残留则让恢复场景
+    // 误判"快照一致"跳过清稿。正在编辑的卡因同步暂时消失，清草稿是正确
+    // 行为——卡已不在列表。
+    const liveSlugs = new Set(
+      customStyles.map((style) => style.styleSlug)
+    );
+    setDrafts((prev) => {
+      const stale = Object.keys(prev).filter((slug) => !liveSlugs.has(slug));
+      if (stale.length === 0) return prev;
+      const rest = { ...prev };
+      stale.forEach((slug) => {
+        delete rest[slug];
+      });
+      return rest;
+    });
+    Object.keys(syncedSnapshotsRef.current).forEach((slug) => {
+      if (!liveSlugs.has(slug)) {
+        delete syncedSnapshotsRef.current[slug];
+      }
+    });
     customStyles.forEach((style) => {
       const slug = style.styleSlug;
       const nextSnapshot = JSON.stringify(style || {});

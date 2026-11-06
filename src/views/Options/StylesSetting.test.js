@@ -507,6 +507,131 @@ describe("StylesSetting style cards", () => {
     view.cleanup();
   });
 
+  test("does not claim style_active for a blank style draft", () => {
+    const view = renderStylesSettingView();
+    const manager = openStyleManager(view);
+    let card = getCards(manager)[0];
+
+    act(() => {
+      getToggle(card).click();
+    });
+
+    card = getCards(manager)[0];
+    // 清空代码：编译 valid 但无任何 CSS 产物——空白样式不是"样式生效中"
+    const codeArea = card.querySelector('textarea[name="styleCode"]');
+    act(() => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      ).set.call(codeArea, "");
+      codeArea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    card = getCards(manager)[0];
+    const demo = card.querySelector(".kt-style-card__demo");
+    // 空白样式非 invalid 形态（valid:true），但不得再挂"样式生效中"提示
+    expect(demo.className).not.toContain("is-invalid");
+    expect(demo.getAttribute("title")).toBe(null);
+    // 演示文本仍在渲染面
+    expect(card.querySelector(".kt-style-demo").textContent).toBe(
+      "translated_text"
+    );
+
+    view.cleanup();
+  });
+
+  test("clears drafts and snapshots for styles removed by external sync", () => {
+    const view = renderStylesSettingView();
+    const manager = openStyleManager(view);
+    let card = getCards(manager)[0];
+
+    act(() => {
+      getToggle(card).click();
+    });
+
+    // 未保存草稿
+    const nameInput = getCards(manager)[0].querySelector(
+      ".kt-style-card__name-input input"
+    );
+    act(() => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      ).set.call(nameInput, "Local style draft");
+      nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    // 外部同步删除该样式：草稿与快照必须一并清除
+    mockSetting.customStyles = [
+      makeCustomStyle("custom-b", "Style B", DANGEROUS_STYLE_CODE),
+    ];
+    view.rerender();
+    expect(
+      getCards(manager).some((node) =>
+        node.textContent.includes("custom-b") ||
+        node.querySelector(".kt-style-card__name-text")?.textContent ===
+          "Style B"
+      )
+    ).toBe(true);
+
+    // 同 slug 以原内容恢复：不得复现陈稿（快照残留会让恢复场景误判
+    // "快照一致"跳过清稿），回落持久化内容
+    mockSetting.customStyles = [
+      makeCustomStyle("custom-a", "Style A", DANGEROUS_STYLE_CODE),
+      makeCustomStyle("custom-b", "Style B", DANGEROUS_STYLE_CODE),
+    ];
+    view.rerender();
+
+    const expanded = getCards(manager).find((node) => isCardExpanded(node));
+    expect(expanded).toBeDefined();
+    expect(
+      expanded.querySelector(".kt-style-card__name-input input").value
+    ).toBe("Style A");
+
+    view.cleanup();
+  });
+
+  test("blocks saving an invalid draft", () => {
+    const view = renderStylesSettingView();
+    const manager = openStyleManager(view);
+    let card = getCards(manager)[0];
+
+    act(() => {
+      getToggle(card).click();
+    });
+
+    const getSaveButton = () =>
+      Array.from(getCards(manager)[0].querySelectorAll("button")).find(
+        (button) => button.textContent === "save"
+      );
+    const setCode = (value) => {
+      act(() => {
+        const area = getCards(manager)[0].querySelector(
+          'textarea[name="styleCode"]'
+        );
+        Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        ).set.call(area, value);
+        area.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+
+    // 语法合法的草稿修改：保存可用（闸只拦 invalid，不拦合法修改）
+    setCode("color: red;");
+    expect(getSaveButton().disabled).toBe(false);
+
+    // 括号不配对 → invalid：保存钮禁用，点击不落库（updateStyle 链路零调用）
+    setCode("position: fixed; {");
+    expect(getSaveButton().disabled).toBe(true);
+    act(() => {
+      getSaveButton().click();
+    });
+    expect(mockUpdateSettingCalls).toHaveLength(0);
+
+    view.cleanup();
+  });
+
   test("deletes only after the confirm dialog resolves", async () => {
     const view = renderStylesSettingView();
     const manager = openStyleManager(view);
@@ -992,10 +1117,11 @@ describe("compileCss selector-list scope guard", () => {
   });
 
   test("keeps an empty draft valid with no rules", () => {
-    // V1 :122 空串短路不被门控误伤。
+    // 空串短路不被门控误伤（valid:true、无规则输出）；空白样式不挂
+    // "样式生效中"提示（无 CSS 产物不构成生效态）
     const { view, demo, css } = renderCardWithCode("");
     expect(demo.className).not.toContain("is-invalid");
-    expect(demo.getAttribute("title")).toBe("style_active");
+    expect(demo.getAttribute("title")).toBe(null);
     expect(css).toBe("");
     view.cleanup();
   });
@@ -1202,6 +1328,52 @@ describe("StylesSetting template select modal", () => {
       );
       expect(isCardExpanded(cards[0])).toBe(true);
       expect(isCardExpanded(cards[1])).toBe(false);
+    });
+  });
+
+  test("keeps template prefilled cards savable under the invalid-save gate", () => {
+    withFakeTimers((view) => {
+      const { manager } = openTemplateModal(view);
+
+      const item = [
+        ...document.body.querySelectorAll('[role="menuitem"]'),
+      ].find(
+        (node) =>
+          node.querySelector(".kt-template-item__name")?.textContent ===
+          "under_line"
+      );
+      act(() => {
+        Simulate.click(item);
+      });
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+
+      // 预填代码恒为合法语法（builtinStylesMap compact 产物）：保存闸不得
+      // 把合法预填卡误锁死——未修改时 disabled 由 isModified 承载，改名后
+      // 保存必须可用
+      const getTopSaveButton = () =>
+        Array.from(getCards(manager)[0].querySelectorAll("button")).find(
+          (button) => button.textContent === "save"
+        );
+      expect(getTopSaveButton().disabled).toBe(true);
+
+      const topNameInput = getCards(manager)[0].querySelector(
+        ".kt-style-card__name-input input"
+      );
+      act(() => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        ).set.call(topNameInput, "Renamed Prefill");
+        topNameInput.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+
+      expect(getTopSaveButton().disabled).toBe(false);
+      act(() => {
+        getTopSaveButton().click();
+      });
+      expect(mockUpdateSettingCalls.length).toBeGreaterThan(0);
     });
   });
 
