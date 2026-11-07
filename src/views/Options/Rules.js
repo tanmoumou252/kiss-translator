@@ -1,4 +1,5 @@
 import TerminologySelect from "./TerminologySelect";
+import PopupStylePreview from "../Popup/PopupStylePreview";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -71,7 +72,11 @@ import { logger } from "../../libs/log";
 import { useApiList } from "../../hooks/Api";
 import ShowMoreButton from "./ShowMoreButton";
 import { useConfirm } from "../../hooks/Confirm";
-import { useAllTextStyles } from "../../hooks/CustomStyles";
+import {
+  useAllTextStyles,
+  STYLE_SOURCE_CUSTOM,
+} from "../../hooks/CustomStyles";
+import { compileCss, sanitizeScopeSlug } from "../../libs/compileCss";
 import {
   highlightSettingsTarget,
   useRevealSearchTarget,
@@ -79,6 +84,97 @@ import {
 } from "./SettingsSearchTarget";
 import { RuleDraftProvider, useRuleDraft, useRuleDrafts } from "./RuleDrafts";
 import { isSameStorageValue } from "../../libs/storageEquality";
+
+// 译文样式下拉选项：名称左 + 样式预览右的行内两栏（参照 StylesSetting.js
+// gripOptionLabel 的节点 label 先例）。与 PopupCont 的 builtin-only 口径
+//（getCompactStylePreviewCode）有意不同：下拉选项需展示自定义样式的真实
+// 效果——但 custom 项的原始 styleCode 禁止未经校验直进 emotion（"&, body"
+// 类选择器列表会泄漏全局规则到 Options 页），必须先经 compileCss 作用域
+// 编译与校验（与 StylesSetting 卡片演示同口径），校验失败回退无样式纯文本。
+// 预览编译结果有界缓存：键 = scopeClass + \u0000 + styleCode（键即全部
+// 输入，无失效难题），容量上限 100、FIFO 淘汰。下拉每次渲染对全部
+// custom 项重跑 compileCss 的开销由此吸收；invalid 判定同样被缓存——
+// 键变化即重编，语义与直连编译一致。导出供测试锁定命中/淘汰语义。
+export const PREVIEW_COMPILE_CACHE_LIMIT = 100;
+export const previewCompileCache = new Map();
+export function cachedCompileCss(scopeClass, styleCode) {
+  const key = `${scopeClass}\u0000${styleCode}`;
+  const cached = previewCompileCache.get(key);
+  if (cached) return cached;
+  const result = compileCss(scopeClass, styleCode);
+  previewCompileCache.set(key, result);
+  if (previewCompileCache.size > PREVIEW_COMPILE_CACHE_LIMIT) {
+    previewCompileCache.delete(previewCompileCache.keys().next().value);
+  }
+  return result;
+}
+
+function textStyleOptionLabel(item, i18n) {
+  const isCustom = item.source === STYLE_SOURCE_CUSTOM;
+  const scopeClass = `kt-scope-${sanitizeScopeSlug(item.styleSlug)}`;
+  const compiled = isCustom
+    ? cachedCompileCss(scopeClass, item.styleCode)
+    : null;
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 1,
+        minWidth: 0,
+        width: "100%",
+      }}
+    >
+      <Typography
+        component="span"
+        sx={{
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {item.styleName}
+      </Typography>
+      {/* 预览隔离闸：预览根 span 直接承载用户 styleCode（含
+          position:fixed/inset/z-index 类危险声明），裸挂会把预览撑成视口
+          覆盖层——外层 contain:paint 使其成为 fixed 后代包含块并裁剪越缘
+          （与 StylesSetting .kt-style-card__demo 沙箱同口径）。aria-hidden：
+          MUI Select 关闭态触发框会渲染选中项 children，预览及其
+          translated_text 不得进入选择框可访问名称，朗读只保留样式名 */}
+      <Box
+        component="span"
+        aria-hidden="true"
+        className={isCustom ? scopeClass : undefined}
+        sx={{
+          contain: "paint",
+          minWidth: 0,
+          flexShrink: 0,
+          maxWidth: "45%",
+        }}
+      >
+        {isCustom ? (
+          <>
+            {compiled.valid && <style>{compiled.css}</style>}
+            {/* 编译失败项渲染显式"无法预览"提示而非普通文本演示——避免
+                用户把无样式文本误认成样式的真实效果 */}
+            <span className={compiled.valid ? "kt-style-demo" : undefined}>
+              {i18n(compiled.valid ? "translated_text" : "css_invalid")}
+            </span>
+          </>
+        ) : (
+          <PopupStylePreview
+            styleSlug={item.styleSlug}
+            previewCode={item.styleCode}
+            label={i18n("translated_text")}
+          />
+        )}
+      </Box>
+    </Box>
+  );
+}
 
 let disabledSubRuleWriteQueue = Promise.resolve();
 
@@ -921,7 +1017,7 @@ function RuleFields({ rule, rules, setShow, setKeyword, draftId }) {
                 {GlobalItem}
                 {allTextStyles.map((item) => (
                   <MenuItem key={item.styleSlug} value={item.styleSlug}>
-                    {item.styleName}
+                    {textStyleOptionLabel(item, i18n)}
                   </MenuItem>
                 ))}
               </TextField>

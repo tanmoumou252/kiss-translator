@@ -93,6 +93,42 @@ export const M3_BRAND_COLORS = {
   },
 };
 
+// 图标风格快照 store：图标分发器（components/icons）经 useSyncExternalStore
+// 订阅本 store，由 M3Theme 把 setting.iconStyle 同步进来——图标模块自身
+// 保持零重依赖（不 import hooks/Setting，避免拖入 apis 重图）。
+export const DEFAULT_ICON_STYLE = "lucide";
+export const DEFAULT_ICON_COLOR = "#90b2ba";
+
+export function resolveIconStyle(value) {
+  return value === "mui" ? "mui" : DEFAULT_ICON_STYLE;
+}
+
+// 图标风格快照小store：分发器组件经 useSyncExternalStore 订阅，
+// 由挂载在各入口根的 M3Theme 把 setting.iconStyle 同步进来——图标模块
+// 自身保持零重依赖（不 import hooks/Setting，避免拖入 apis 重图）。
+let iconStyleSnapshot = DEFAULT_ICON_STYLE;
+const iconStyleListeners = new Set();
+
+export function setIconStyleSnapshot(value) {
+  const next = resolveIconStyle(value);
+  if (next === iconStyleSnapshot) {
+    return;
+  }
+  iconStyleSnapshot = next;
+  iconStyleListeners.forEach((listener) => listener(next));
+}
+
+export function subscribeIconStyle(listener) {
+  iconStyleListeners.add(listener);
+  return () => {
+    iconStyleListeners.delete(listener);
+  };
+}
+
+export function getIconStyleSnapshot() {
+  return iconStyleSnapshot;
+}
+
 export function resolveM3Colors(mode = "light", brand = "blue") {
   return {
     ...M3_COLORS[mode],
