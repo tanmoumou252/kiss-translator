@@ -74,5 +74,6 @@ jobs:
           MAX_PATCH_CHARS: '60000'
           MAX_FILES: '200'
           MAX_COMMIT_CHARS: '12000'
-          AI_MAX_TOKENS: '2400'
+          AI_MAX_TOKENS: '10000'          
+          AI_CHAT_TEMPLATE_KWARGS: ${{ vars.AI_CHAT_TEMPLATE_KWARGS || '{"enable_thinking":false}' }}
         run: node .github/scripts/auto-fill-pr.mjs

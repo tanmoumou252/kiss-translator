@@ -1,0 +1,1578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Material 3 (M3) 插件工程框架规范与交互原型 (完整缺陷修正版)</title>
+  <style>
+    /* ==========================================================================
+       1. M3 Design Tokens 体系 (挂载于沙箱根节点，免疫宿主环境污染)
+       ========================================================================== */
+    .m3-plugin-root,
+    :host {
+      /* M3 官方形状标尺 (Shape Scale) */
+      --md-sys-shape-corner-none: 0px;
+      --md-sys-shape-corner-extra-small: 4px; /* TextField (Outlined), Menu Paper, SnackBar */
+      --md-sys-shape-corner-small: 8px;       /* Chips (M3 官方标准标尺 8dp) */
+      --md-sys-shape-corner-medium: 12px;     /* Cards, Small Dialogs */
+      --md-sys-shape-corner-large: 16px;      /* Large Cards, Nav Drawer */
+      --md-sys-shape-corner-full: 9999px;     /* Buttons, Switch Track, Segmented Controls */
+
+      /* M3 菜单与下拉度量标尺 */
+      --md-sys-menu-width-min: 112px;
+      --md-sys-menu-width-max: min(280px, calc(100vw - 24px)); /* 上限钳制含视口兜底：窄视口（如分屏、小窗）下绝不溢出宿主视口 */
+      --md-sys-menu-item-height: 48px;
+      --md-sys-menu-padding-vertical: 8px;
+      --md-sys-menu-padding-horizontal: 16px;
+      --md-sys-menu-icon-size: 24px;
+      --md-sys-menu-icon-gap: 12px;
+
+      /* M3 状态层透明度标尺 */
+      --md-sys-state-hover: 0.08;
+      --md-sys-state-focus: 0.12;
+      --md-sys-state-pressed: 0.12;
+
+      /* 动效标尺 */
+      --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+      --md-sys-motion-duration-short: 0.2s;
+
+      /* [亮色调色板 - 基线钉死] */
+      --md-sys-color-surface: #fbfdfc;
+      --md-sys-color-surface-dim: #dbdede;
+      --md-sys-color-surface-bright: #fbfdfc;
+      --md-sys-color-surface-container-lowest: #ffffff;
+      --md-sys-color-surface-container-low: #f5f8f8;
+      --md-sys-color-surface-container: #eff2f2;
+      --md-sys-color-surface-container-high: #e9ecec;
+      --md-sys-color-surface-container-highest: #e3e6e6;
+
+      --md-sys-color-on-surface: #191c1c;
+      --md-sys-color-on-surface-variant: #3f484a;
+      --md-sys-color-outline: #6f797a;
+      --md-sys-color-outline-variant: #bfc8c9;
+
+      /* Primary 主强调色 */
+      --md-sys-color-primary: #006874;
+      --md-sys-color-on-primary: #ffffff;
+      --md-sys-color-primary-container: #9eeffd;
+      --md-sys-color-on-primary-container: #001f24;
+
+      /* Secondary 次级强调色 (同色相低彩度孪生) */
+      --md-sys-color-secondary: #4a6267;
+      --md-sys-color-on-secondary: #ffffff;
+      --md-sys-color-secondary-container: #cde7ec;
+      --md-sys-color-on-secondary-container: #051f23;
+
+      /* Tertiary 三级点睛色 (色相旋转温差对冲) */
+      --md-sys-color-tertiary: #7c5800;
+      --md-sys-color-on-tertiary: #ffffff;
+      --md-sys-color-tertiary-container: #ffdea2;
+      --md-sys-color-on-tertiary-container: #271900;
+
+      /* 阴影 */
+      --md-sys-elevation-level1: 0 1px 2px rgba(0, 0, 0, 0.08);
+      --md-sys-elevation-level2: 0 2px 6px 2px rgba(0, 0, 0, 0.08);
+
+      /* 动态容器背景上下文 (解决 TextField 背景遮罩穿帮) */
+      --m3-current-container-bg: var(--md-sys-color-surface);
+    }
+
+    /* [暗色调色板 - 严格挂载在沙箱自身 data-theme，严禁穿透污染 host body] */
+    .m3-plugin-root[data-theme="dark"],
+    :host([data-theme="dark"]) {
+      --md-sys-color-surface: #0e1415;
+      --md-sys-color-surface-dim: #0e1415;
+      --md-sys-color-surface-bright: #343a3b;
+      --md-sys-color-surface-container-lowest: #090f10;
+      --md-sys-color-surface-container-low: #171d1d;
+      --md-sys-color-surface-container: #1b2121;
+      --md-sys-color-surface-container-high: #252b2b;
+      --md-sys-color-surface-container-highest: #303636;
+
+      --md-sys-color-on-surface: #e1e3e3;
+      --md-sys-color-on-surface-variant: #bfc8c9;
+      --md-sys-color-outline: #899294;
+      --md-sys-color-outline-variant: #3f484a;
+
+      --md-sys-color-primary: #4fd8eb;
+      --md-sys-color-on-primary: #00363d;
+      --md-sys-color-primary-container: #004f58;
+      --md-sys-color-on-primary-container: #9eeffd;
+
+      --md-sys-color-secondary: #b1cbd0;
+      --md-sys-color-on-secondary: #1c3438;
+      --md-sys-color-secondary-container: #334a4f;
+      --md-sys-color-on-secondary-container: #cde7ec;
+
+      --md-sys-color-tertiary: #ffba28;
+      --md-sys-color-on-tertiary: #422c00;
+      --md-sys-color-tertiary-container: #5e4200;
+      --md-sys-color-on-tertiary-container: #ffdea2;
+
+      --md-sys-elevation-level1: 0 1px 3px rgba(0, 0, 0, 0.35);
+      --md-sys-elevation-level2: 0 4px 12px rgba(0, 0, 0, 0.45);
+
+      --m3-current-container-bg: var(--md-sys-color-surface);
+    }
+
+    /* ==========================================================================
+       2. 宿主隔离重置与通用 State Layer 系统
+       ========================================================================== */
+    .m3-plugin-root {
+      all: initial; /* 阻断宿主继承 */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      background-color: var(--md-sys-color-surface-container-lowest);
+      color: var(--md-sys-color-on-surface);
+      /* 健壮的系统现代字体栈，解决 Windows/Mac 下字宽不一引发的截断 */
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      box-sizing: border-box;
+      padding: 32px 16px;
+      transition: background-color var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    }
+    .m3-plugin-root *,
+    .m3-plugin-root *::before,
+    .m3-plugin-root *::after {
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+
+    .layout-wrapper { max-width: 1040px; width: 100%; display: flex; flex-direction: column; gap: 28px; }
+
+    /* [核心修正] State Layer 解耦为独立节点，彻底避免 overflow: hidden 切断按钮外的 48px 触控垫片 */
+    .m3-interaction-node {
+      position: relative;
+      cursor: pointer;
+      user-select: none;
+      border: none;
+      background: transparent;
+      outline: none;
+    }
+    .m3-state-layer {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 1;
+    }
+    .m3-state-layer::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-color: currentColor;
+      opacity: 0;
+      transition: opacity var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    }
+    .m3-interaction-node:hover .m3-state-layer::before { opacity: var(--md-sys-state-hover); }
+    .m3-interaction-node:active .m3-state-layer::before { opacity: var(--md-sys-state-pressed); }
+
+    /* [v3.3 §6.4 焦点指示单形原则] 焦点环按语义分流，根治两处缺陷：
+       ① 单一通用环让无语义节点（如未接键盘导航的 Chip）也画环；
+       ② focus 档染层与 outline 环同节点双显（双份焦点指示）。
+       三分法：
+       - 环型语义类（.m3-semantic-focus）：已接入 roving tabindex / menu·listbox·
+         combobox·radiogroup 等角色与键盘接线（范例 A/B/C 菜单项、分段项、触发钮、
+         胶囊成员）——:focus-visible outline 环为唯一键盘焦点指示，focus 档染层
+         对其互斥禁用（:not 排除，无双显路径）。
+       - 染层型（未挂 .m3-semantic-focus 的交互节点，如 Chip、纯指针区）：
+         focus 档 0.12 染层为唯一焦点指示，严禁另画环（负向锁断言环样式键不存在）。
+       - 无语义类（不可聚焦节点）：环与 focus 染层双双不存在。 */
+    .m3-interaction-node:not(.m3-semantic-focus):focus-visible .m3-state-layer::before { opacity: var(--md-sys-state-focus); }
+    .m3-semantic-focus:focus-visible {
+      outline: 2px solid var(--md-sys-color-primary);
+      outline-offset: 2px;
+    }
+
+    /* [v3.5 §6.4 forced-colors 兜底] 强制色彩模式下半透明染层与 box-shadow 环
+       全部失效：环型语义类逐类提供 outline 兜底；染层型节点同样必须提供同
+       形态兜底（v3.5 扩围——彼时染层被固化为不透明系统色、不再构成可分辨
+       焦点指示，outline 是唯一指示，不构成单形违反）；无语义类不具焦点可达
+       性，无需兜底。CanvasText 系统关键字（禁硬编码 Hex 同源口径）；兜底块
+       必须置于同选择器 :focus-visible 规则之后（顺序闸契约，
+       对齐 src/styles/m3.test.js 规则顺序断言）。 */
+    @media (forced-colors: active) {
+      .m3-semantic-focus:focus-visible {
+        outline: 2px solid CanvasText;
+        outline-offset: 2px;
+      }
+      .m3-interaction-node:not(.m3-semantic-focus):focus-visible {
+        outline: 2px solid CanvasText;
+        outline-offset: 2px;
+      }
+      .m3-switch input:focus-visible + .m3-switch-track {
+        outline: 2px solid CanvasText;
+        outline-offset: 2px;
+      }
+    }
+
+    /* [v3.5 §6.4 静默作用域一致] focusModality 指针静默：逐元素 landed 校验
+       标记＋抑制 CSS，与焦点环样式同注入域（同一样式表、同一 .m3-* 选择器
+       作用域；标记由脚本经 scriptFocus 置于被聚焦元素本体，见脚本 1.5 节，
+       机制语义对齐 src/hooks/focusModality.js：focus 未落地不标记、键盘模态
+       scriptFocus 移除标记，杜绝全局模态属性整页压制的两套口径分歧）。 */
+    .m3-semantic-focus[data-kt-focus-silent="true"]:focus-visible { outline: none; }
+    .m3-interaction-node[data-kt-focus-silent="true"]:focus-visible .m3-state-layer::before { opacity: 0; }
+
+    /* 顶栏与面板 */
+    .top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+    .card-panel {
+      --m3-current-container-bg: var(--md-sys-color-surface);
+      background-color: var(--m3-current-container-bg);
+      border-radius: var(--md-sys-shape-corner-medium);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .panel-header {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--md-sys-color-on-surface);
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+      padding-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .badge-tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--md-sys-shape-corner-full);
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+    }
+    .badge-tag.primary { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+    .badge-tag.tertiary { background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container); }
+
+    .matrix-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .matrix-table th, .matrix-table td { border: 1px solid var(--md-sys-color-outline-variant); padding: 10px 12px; text-align: left; }
+    .matrix-table th { background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface-variant); font-weight: 600; }
+    .rule-chip { display: inline-block; font-size: 11px; font-weight: bold; padding: 2px 6px; border-radius: 4px; margin-bottom: 4px; }
+    .rule-chip.do { background: #dcfce7; color: #166534; }
+    .rule-chip.dont { background: #fee2e2; color: #991b1b; }
+
+    /* 通用 Button 阶梯 */
+    .m3-btn {
+      position: relative; /* 触控垫片 ::after 定位锚点（§4.3） */
+      height: 40px; padding: 0 20px; border-radius: var(--md-sys-shape-corner-full); font-size: 14px;
+      font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-filled-primary { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+    .btn-tonal-secondary { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+    .btn-tonal-tertiary { background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container); }
+    .btn-outlined { background: transparent; border: 1px solid var(--md-sys-color-outline); color: var(--md-sys-color-primary); }
+
+    .card-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+
+    /* ==========================================================================
+       3. 强调色系统看板 (Accent Color System)
+       ========================================================================== */
+    .accent-role-deck { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+    .accent-card { border: 1px solid var(--md-sys-color-outline-variant); border-radius: var(--md-sys-shape-corner-small); overflow: hidden; display: flex; flex-direction: column; }
+    .accent-card-header { padding: 12px 14px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+    .accent-swatches { display: flex; height: 48px; width: 100%; }
+    .accent-swatch { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 11px; font-family: monospace; font-weight: 600; }
+    .accent-card-body { padding: 12px 14px; background: var(--md-sys-color-surface-container-low); font-size: 12px; color: var(--md-sys-color-on-surface-variant); line-height: 1.5; display: flex; flex-direction: column; gap: 6px; }
+
+    /* ==========================================================================
+       4. 控件 A: 开关 (Switch) - 动力学居中与中心对称修正
+       ========================================================================== */
+    .switch-group-box {
+      --m3-current-container-bg: var(--md-sys-color-surface-container-low);
+      background: var(--m3-current-container-bg);
+      display: flex; flex-direction: column; gap: 12px; padding: 16px;
+      border-radius: var(--md-sys-shape-corner-small); border: 1px solid var(--md-sys-color-outline-variant);
+    }
+    .m3-switch-row { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px dashed var(--md-sys-color-outline-variant); }
+    .m3-switch-row:last-child { padding-bottom: 0; border-bottom: none; }
+    .switch-meta { display: flex; flex-direction: column; gap: 2px; }
+    .switch-title { font-size: 14px; font-weight: 500; color: var(--md-sys-color-on-surface); }
+    .switch-desc { font-size: 12px; color: var(--md-sys-color-on-surface-variant); }
+
+    .m3-switch {
+      position: relative;
+      width: 52px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      flex-shrink: 0;
+      overflow: visible; /* 必须 visible 确保触控垫片生效 */
+    }
+    @media (pointer: coarse) {
+      .m3-switch::after {
+        content: '';
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        min-width: 48px; min-height: 48px;
+        width: 100%; height: 100%;
+        border-radius: inherit;
+        pointer-events: auto;
+      }
+    }
+    .m3-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .m3-switch-track {
+      position: absolute;
+      inset: 0;
+      border-radius: var(--md-sys-shape-corner-full);
+      background: var(--md-sys-color-surface-container-highest);
+      border: 2px solid var(--md-sys-color-outline);
+      transition: background-color var(--md-sys-motion-duration-short), border-color var(--md-sys-motion-duration-short);
+    }
+    .m3-switch-thumb {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      /* [核心数学修正] 未激活态中心：16px。左侧位移 = 16 - (16/2) = 8px */
+      transform: translateY(-50%) translateX(8px);
+      width: 16px;
+      height: 16px;
+      border-radius: var(--md-sys-shape-corner-full);
+      background: var(--md-sys-color-outline);
+      transition: transform var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard),
+                  width var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard),
+                  height var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard),
+                  background-color var(--md-sys-motion-duration-short);
+    }
+    .m3-switch input:checked + .m3-switch-track {
+      background: var(--md-sys-color-primary);
+      border-color: var(--md-sys-color-primary);
+    }
+    /* [§6.4 有语义必有环] switch 经 input[role="switch"] 键盘可达，必须配对
+       焦点环：环画在 track 本体（视觉承载件），挂 :focus-visible 键盘语境伪
+       类；指针点击 checkbox 链路 :focus-visible 不匹配，无误显路径。 */
+    .m3-switch input:focus-visible + .m3-switch-track {
+      outline: 2px solid var(--md-sys-color-primary);
+      outline-offset: 2px;
+    }
+    .m3-switch input:checked ~ .m3-switch-thumb {
+      /* [核心数学修正] 激活态中心：36px。左侧位移 = 36 - (24/2) = 24px */
+      transform: translateY(-50%) translateX(24px);
+      width: 24px;
+      height: 24px;
+      background: var(--md-sys-color-on-primary);
+    }
+    /* [核心数学修正] 按下 `:active` 膨胀到 28px 时保持几何对称轴心不漂移 */
+    .m3-switch:active .m3-switch-thumb {
+      width: 28px;
+      transform: translateY(-50%) translateX(2px); /* 16 - 28/2 = 2px */
+    }
+    .m3-switch:active input:checked ~ .m3-switch-thumb {
+      width: 28px;
+      transform: translateY(-50%) translateX(22px); /* 36 - 28/2 = 22px */
+    }
+
+    /* ==========================================================================
+       5. 控件 B: 分段控制器 (Segmented Buttons) - 支持 Checkmark 可访问性与键盘联动
+       ========================================================================== */
+    .segmented-group-box {
+      --m3-current-container-bg: var(--md-sys-color-surface-container-low);
+      background: var(--m3-current-container-bg);
+      display: flex; flex-direction: column; gap: 16px; padding: 16px;
+      border-radius: var(--md-sys-shape-corner-small); border: 1px solid var(--md-sys-color-outline-variant);
+    }
+    .segmented-item-wrapper { display: flex; flex-direction: column; gap: 6px; }
+    .segmented-label-row { display: flex; justify-content: space-between; font-size: 13px; font-weight: 500; }
+
+    .m3-segmented-button-group {
+      display: inline-flex;
+      width: 100%;
+      height: 40px;
+      border: 1px solid var(--md-sys-color-outline);
+      border-radius: var(--md-sys-shape-corner-full);
+      background: transparent;
+      padding: 0;
+    }
+    .m3-segment-item {
+      position: relative; /* 触控垫片 ::after 定位锚点（§4.3） */
+      flex: 1;
+      height: 100%;
+      border-right: 1px solid var(--md-sys-color-outline);
+      color: var(--md-sys-color-on-surface);
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 10px;
+      white-space: nowrap;
+      transition: background-color var(--md-sys-motion-duration-short), color var(--md-sys-motion-duration-short);
+    }
+    .m3-segment-item:first-child { border-top-left-radius: inherit; border-bottom-left-radius: inherit; }
+    .m3-segment-item:last-child { border-right: none; border-top-right-radius: inherit; border-bottom-right-radius: inherit; }
+    .m3-segment-item.selected {
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+      font-weight: 600;
+    }
+    /* M3 官方 Checkmark 确认标记（小屏可配置隐藏）。
+       [核心修正] 严禁 display:none <-> inline-block 切换——那会让选中段文字在
+       两个分段间切换时突兀横跳（Layout Shift）。此处恒渲染为 flex item（gap 恒
+       占位），以 max-width + opacity + transform 平滑插值，零布局突变。 */
+    .m3-segment-checkmark {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+      max-width: 0;
+      opacity: 0;
+      transform: scale(0.5);
+      transition:
+        max-width var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard),
+        opacity 0.15s ease,
+        transform var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    }
+    .m3-segment-item.selected .m3-segment-checkmark {
+      max-width: 18px;
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* ==========================================================================
+       6. 控件 C: 下拉菜单 (Menu) 与 列表选择框 (Listbox) 的标准划分
+       ========================================================================== */
+    .menu-demo-stage {
+      --m3-current-container-bg: var(--md-sys-color-surface-container-low);
+      background: var(--m3-current-container-bg);
+      display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;
+      padding: 16px; border-radius: var(--md-sys-shape-corner-small); border: 1px solid var(--md-sys-color-outline-variant);
+    }
+    .menu-spec-column { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 240px; }
+    .menu-dimension-indicator {
+      font-size: 12px; font-family: monospace; color: var(--md-sys-color-primary);
+      background: var(--md-sys-color-surface-container); padding: 4px 8px; border-radius: 4px; display: inline-block;
+    }
+
+    /* 容器基准。水平 padding 8px：行底色/染层四周内缩、以 4dp 圆角收边（MUI
+       MenuItem 同形态，端部不再以直角戳出容器）——同时为焦点环外延（线宽
+       2px＋offset 2px＝4px）预留余量，overflow 滚动容器按 padding box 裁剪，
+       8px ≥ 4px 环永不裁切。垂直 padding 8px 同理兜住首末项环。 */
+    .m3-elevation-surface {
+      background: var(--md-sys-color-surface-container);
+      border-radius: var(--md-sys-shape-corner-extra-small);
+      box-shadow: var(--md-sys-elevation-level2);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      padding: var(--md-sys-menu-padding-vertical) 8px;
+      min-width: var(--md-sys-menu-width-min);
+      max-width: var(--md-sys-menu-width-max);
+      outline: none;
+    }
+
+    /* 列表项与菜单项。几何锁（§3.1.C/AGENTS 清单）：行高 48、水平 padding 16、
+       圆角 4dp——底色/染层/焦点环全部跟随行盒圆角，与容器 8px 内缩配合，
+       五个下拉（范例 A/B/C、视口菜单、入口本体列表）单一实现统一口径。 */
+    .m3-item-row {
+      height: var(--md-sys-menu-item-height);
+      padding: 0 var(--md-sys-menu-padding-horizontal);
+      border-radius: var(--md-sys-shape-corner-extra-small);
+      display: flex;
+      align-items: center;
+      gap: var(--md-sys-menu-icon-gap);
+      font-size: 14px;
+      color: var(--md-sys-color-on-surface);
+      width: 100%;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .m3-item-icon { width: 20px; height: 20px; flex-shrink: 0; fill: var(--md-sys-color-on-surface-variant); }
+    /* 长文本项 ellipsis（§4.5）：.m3-item-row 是 flex 容器，text-overflow 对
+       flex 子项不生效——省略号落在文本 span 上（flex item 已 blockified，
+       min-width: 0 允许收缩、white-space 显式继承钉死防换行破坏 48px 行高）。 */
+    .m3-item-row > span:not(.m3-state-layer) {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .m3-item-trailing { margin-left: auto; font-size: 12px; color: var(--md-sys-color-outline); }
+
+    /* 范例 A: 短操作菜单 (Action Menu) */
+    .menu-fixed-short { height: max-content; flex-shrink: 0; }
+
+    /* 范例 B: 选项选择列表 (Listbox) - 单选且带滚动提示 */
+    .listbox-scrollable {
+      max-height: 280px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+    .m3-item-row[aria-selected="true"] {
+      background-color: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+      font-weight: 600;
+    }
+
+    /* 范例 C: 多选菜单前置 Checkbox（W3C APG menuitemcheckbox）。
+       多选通过前置 Checkbox 表达，选中仅染 Checkbox 本体，严禁整行染色。 */
+    .m3-checkbox {
+      width: 18px;
+      height: 18px;
+      border-radius: 2px;
+      border: 2px solid var(--md-sys-color-outline);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--md-sys-motion-duration-short);
+      flex-shrink: 0;
+    }
+    .m3-checkbox svg {
+      width: 14px; height: 14px;
+      stroke: var(--md-sys-color-on-primary); stroke-width: 2.5; fill: none;
+      display: none;
+    }
+    .m3-item-row[aria-checked="true"] .m3-checkbox {
+      background-color: var(--md-sys-color-primary);
+      border-color: var(--md-sys-color-primary);
+    }
+    .m3-item-row[aria-checked="true"] .m3-checkbox svg { display: block; }
+
+    /* 触发源示例按钮（规范 6.3：opener 打开浮层时必须挂载触发元素引用）。
+       align-self: flex-start：所在演示列/舞台均为 flex column，按钮作为 flex
+       item 会被 blockified + stretch 拉满列宽（与 §5.5 胶囊组同机制），入口
+       本体应 hug 内容。 */
+    .m3-surface-trigger { font-size: 12.5px; padding: 0 12px; height: 32px; align-self: flex-start; }
+
+    /* ==========================================================================
+       7. 标签 (Chips) 垫片隔离与输入框 (TextField) 动态遮罩修复
+       ========================================================================== */
+    .chip-container { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .m3-chip {
+      height: 32px;
+      padding: 0 16px;
+      border-radius: var(--md-sys-shape-corner-small);
+      font-size: 14px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid var(--md-sys-color-outline);
+      color: var(--md-sys-color-on-surface-variant);
+      vertical-align: middle;
+      overflow: visible; /* 必须为 visible，杜绝裁切 ::after */
+      transition: background-color var(--md-sys-motion-duration-short), border-color var(--md-sys-motion-duration-short);
+    }
+    /* [核心修正] 仅在触控屏生效 48px 垫片，且绝对不被 overflow 裁切。
+       触控垫片全覆盖（WCAG 2.5.8 AA ≥24px / 2.5.5 AAA ≥44px，本规范统一 48px）：
+       凡几何高度 < 48px 的可交互节点（btn 40px、segment-item 40px）一律扩展垫片。 */
+    @media (pointer: coarse) {
+      .m3-chip::after,
+      .m3-btn::after,
+      .m3-segment-item::after {
+        content: '';
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        min-width: 48px; min-height: 48px;
+        width: 100%; height: 100%;
+        border-radius: inherit;
+        pointer-events: auto;
+      }
+    }
+    .m3-chip.selected {
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+      border-color: transparent;
+    }
+    .m3-chip.tertiary-accent.selected {
+      background: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+      border-color: transparent;
+    }
+
+    /* [核心修正] TextField 浮动标签的背景穿帮修复与抖动消除 */
+    .m3-text-field { position: relative; height: 56px; width: 100%; }
+    .m3-text-field-input {
+      width: 100%;
+      height: 100%;
+      border-radius: var(--md-sys-shape-corner-extra-small);
+      border: 1px solid var(--md-sys-color-outline);
+      background: transparent;
+      padding: 0 16px;
+      font-size: 15px;
+      color: var(--md-sys-color-on-surface);
+      outline: none;
+      transition: border-color var(--md-sys-motion-duration-short), box-shadow var(--md-sys-motion-duration-short);
+    }
+    .m3-text-field-label {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 15px;
+      color: var(--md-sys-color-on-surface-variant);
+      /* 消费动态容器背景色，严禁硬编码白底 */
+      background: var(--m3-current-container-bg, var(--md-sys-color-surface));
+      padding: 0 4px;
+      pointer-events: none;
+      transition: top 0.15s, font-size 0.15s, color 0.15s;
+    }
+    /* 上浮逻辑 */
+    .m3-text-field-input:focus ~ .m3-text-field-label,
+    .m3-text-field-input:not(:placeholder-shown) ~ .m3-text-field-label {
+      top: 0;
+      font-size: 12px;
+    }
+    /* 染色逻辑解耦：仅 focus 呈 Primary 色，失焦退回灰调 */
+    .m3-text-field-input:focus ~ .m3-text-field-label {
+      color: var(--md-sys-color-primary);
+    }
+    .m3-text-field-input:focus {
+      border-color: var(--md-sys-color-primary);
+      box-shadow: 0 0 0 1px var(--md-sys-color-primary); /* 防 1px 抖动跳跃 */
+    }
+
+    /* ==========================================================================
+       8. [v3.3 §4.5/§4.7 演示] 窄视口舞台：容器查询改向 + 菜单视口钳制
+       ========================================================================== */
+    /* 可拖拽收缩演示台（右下角把手）：container-type 使内部改向走容器查询，
+       落实 §4.7「响应式一律 CSS 容器查询，禁 JS 布局分支」。
+       注意：演示台自身 overflow hidden 只裁自身装饰，触控垫片挂在成员节点
+       （成员自身 overflow visible，§4.2/§4.3）不受影响。 */
+    .m3-viewport-stage {
+      container-type: inline-size;
+      resize: horizontal;
+      overflow: auto;
+      min-width: 200px;
+      max-width: 100%;
+      border: 1px dashed var(--md-sys-color-outline);
+      border-radius: var(--md-sys-shape-corner-small);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      --m3-current-container-bg: var(--md-sys-color-surface-container-low);
+      background: var(--m3-current-container-bg);
+    }
+    /* §4.7 改向基线：窄容器下主轴 row→column，交叉轴显式声明 align-items
+       （漏声明会被默认 flex-start 左堆收缩，§4.7 缺陷规约）。 */
+    .m3-settings-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .m3-settings-label { font-size: 13px; color: var(--md-sys-color-on-surface-variant); }
+    @container (max-width: 480px) {
+      .m3-settings-row { flex-direction: column; align-items: stretch; }
+    }
+    /* §4.5 视口兜底演示：舞台内菜单宽度同时受容器钳制（真实宿主环境为
+       min(280px, calc(100vw - 24px))，见 .m3-elevation-surface 既有 token）。 */
+    .m3-viewport-stage .m3-elevation-surface { max-width: min(280px, 100%); }
+
+    /* ==========================================================================
+       9. [v3.3 §5.5 演示] 胶囊按钮组（假分体）：外全圆内 4px、gap 2px、组壳不造环
+       ========================================================================== */
+    .m3-capsule-group {
+      display: inline-flex;
+      align-items: stretch;
+      gap: 2px;
+      padding: 2px;
+      border-radius: var(--md-sys-shape-corner-full);
+      background: var(--md-sys-color-secondary-container);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      /* §5.5 胶囊收紧形态：壳 hug 内容。宿主面板 .card-panel 为 flex column，
+         本组作为其 flex item 会被 blockified（inline-flex→flex）并按默认
+         align-self: stretch 拉满整卡宽度——显式 flex-start 退出拉伸。 */
+      align-self: flex-start;
+      /* 组壳不造环（§5.5/§6.4）：组容器零焦点样式，状态层与焦点环全部交成员主题 */
+    }
+    .m3-capsule-member {
+      height: 40px; /* medium 触控高度（§5.5） */
+      padding: 0 14px;
+      border-radius: var(--md-sys-shape-corner-extra-small); /* 内侧接缝 4px */
+      background: transparent;
+      color: var(--md-sys-color-on-secondary-container);
+    }
+    .m3-capsule-group .m3-capsule-member:first-child {
+      border-top-left-radius: var(--md-sys-shape-corner-full);
+      border-bottom-left-radius: var(--md-sys-shape-corner-full);
+    }
+    .m3-capsule-group .m3-capsule-member:last-child {
+      border-top-right-radius: var(--md-sys-shape-corner-full);
+      border-bottom-right-radius: var(--md-sys-shape-corner-full);
+    }
+    /* 窄屏（§4.7）icon-only 退化：文案 display:none（textContent 保留供搜索命中），
+       可及名交显式 aria-label（display:none 文本与缺省 aria-hidden 图标均不进
+       可及名计算，WCAG 4.1.2 —— 成员标签恒携带 aria-label）。 */
+    @media (max-width: 560px) {
+      .m3-capsule-member .m3-capsule-text { display: none; }
+    }
+    /* 无语义负向样本（§6.4 静默作用域/负向锁示范）：非交互静态标签，
+       不挂 .m3-interaction-node / .m3-semantic-focus，样式文本零任何焦点键。 */
+    .m3-chip-static { cursor: default; border-style: dashed; }
+    .m3-capsule-member .m3-item-icon { fill: currentColor; width: 20px; height: 20px; }
+
+    /* ==========================================================================
+       9.5 [§4.6 演示] 下拉入口本体度量衡与语义配对（模块十三）
+       ========================================================================== */
+    .m3-select-entry {
+      height: 40px;
+      padding: 0 12px;
+      border-radius: var(--md-sys-shape-corner-extra-small);
+      border: 1px solid var(--md-sys-color-outline);
+      background: transparent;
+      color: var(--md-sys-color-on-surface);
+      font-size: 14px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 280px;
+      /* 与胶囊组同机制：flex column 面板内退出 blockified+stretch 拉伸 */
+      align-self: flex-start;
+    }
+    .m3-select-entry .m3-entry-value {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    /* 宿主隔离演示模拟区 */
+    .host-mock-wrapper {
+      border: 2px dashed #94a3b8;
+      border-radius: var(--md-sys-shape-corner-medium);
+      padding: 20px;
+      background: #f8fafc;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 沙箱隔离根节点：所有主题与样式计算严格收敛在此处，免疫宿主污染 -->
+  <div class="m3-plugin-root" id="m3-sandbox-root" data-theme="light">
+    <div class="layout-wrapper">
+
+      <!-- 顶栏与主题切换 (严禁穿透修改宿主 body) -->
+      <header class="top-bar">
+        <div>
+          <h1 style="font-size: 20px; font-weight: 700;">Material 3 (M3) 插件框架交互与规范矩阵 (终版规范落地)</h1>
+          <p style="font-size: 13px; color: var(--md-sys-color-on-surface-variant); margin-top: 4px;">
+            强调色角色分工 (HCT 算法) × 几何防脆弱约束 × a11y 严格键盘语义 × 宿主强隔离
+          </p>
+        </div>
+        <button class="m3-btn btn-tonal-secondary m3-semantic-focus m3-interaction-node" id="theme-toggle-btn">
+          <span class="m3-state-layer"></span>
+          <span>🌓 切换沙箱外观 (浅色 / 暗色)</span>
+        </button>
+      </header>
+
+      <!-- 模块 1: 色彩哲学 -->
+      <section class="card-panel">
+        <div class="panel-header">
+          <span>一、强调色角色分工与语义矩阵 (Accent Color Roles & Semantic Grammar)</span>
+          <span class="badge-tag primary">HCT 算法分工</span>
+        </div>
+        <div class="accent-role-deck">
+          <div class="accent-card">
+            <div class="accent-card-header" style="background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);">
+              <span>Primary (主强调色)</span>
+              <span style="font-size: 11px;">全局唯一行动点</span>
+            </div>
+            <div class="accent-swatches">
+              <div class="accent-swatch" style="background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);">Primary</div>
+              <div class="accent-swatch" style="background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container);">Container</div>
+            </div>
+            <div class="accent-card-body">
+              <div><strong>职责：</strong>页面主 CTA、聚焦边框、Switch 激活滑轨。单屏仅允许存在 1 个实心主按钮。</div>
+            </div>
+          </div>
+
+          <div class="accent-card">
+            <div class="accent-card-header" style="background: var(--md-sys-color-secondary); color: var(--md-sys-color-on-secondary);">
+              <span>Secondary (次级强调色)</span>
+              <span style="font-size: 11px;">同色相低彩度孪生</span>
+            </div>
+            <div class="accent-swatches">
+              <div class="accent-swatch" style="background: var(--md-sys-color-secondary); color: var(--md-sys-color-on-secondary);">Secondary</div>
+              <div class="accent-swatch" style="background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);">Container</div>
+            </div>
+            <div class="accent-card-body">
+              <div><strong>职责：</strong>分段控制器（Segmented Buttons）选中底色、常规过滤标签（Chips）选中底色。平铺不刺眼。</div>
+            </div>
+          </div>
+
+          <div class="accent-card">
+            <div class="accent-card-header" style="background: var(--md-sys-color-tertiary); color: var(--md-sys-color-on-tertiary);">
+              <span>Tertiary (三级点睛色)</span>
+              <span style="font-size: 11px;">色相旋转 60°~120°</span>
+            </div>
+            <div class="accent-swatches">
+              <div class="accent-swatch" style="background: var(--md-sys-color-tertiary); color: var(--md-sys-color-on-tertiary);">Tertiary</div>
+              <div class="accent-swatch" style="background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container);">Container</div>
+            </div>
+            <div class="accent-card-body">
+              <div><strong>职责：</strong>AI 智能释义、特色高光注记、跨色系冷暖温差对冲。严禁作为常规通用按钮。</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 模块 2: 选型决策矩阵 -->
+      <section class="card-panel">
+        <div class="panel-header">
+          <span>二、交互控件排他选型铁律 (Control Selection Decision Matrix)</span>
+          <span class="badge-tag">排他选型法则</span>
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th style="width: 140px;">控件类型</th>
+                <th style="width: 130px;">容量与语义</th>
+                <th>适用场景 (DO)</th>
+                <th>严禁反模式 (DON'T)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>开关 (Switch)</strong></td>
+                <td><strong>N = 2</strong><br>二元布尔 (On/Off)</td>
+                <td><span class="rule-chip do">DO 适用</span> 单一功能即时开启/关闭（如监听剪贴板）。</td>
+                <td><span class="rule-chip dont">DON'T 严禁</span> 严禁用于具名互斥项选择（如“深色/浅色”）。</td>
+              </tr>
+              <tr>
+                <td><strong>分段控制器 (Segmented)</strong></td>
+                <td><strong>2 ≤ N ≤ 5</strong><br>并列互斥具名项</td>
+                <td><span class="rule-chip do">DO 适用</span> 简短实体（≤4字）同屏对照直选（如模式、外观）。</td>
+                <td><span class="rule-chip dont">DON'T 严禁</span> 严禁 2 选 1 做下拉；严禁文案过长换行。</td>
+              </tr>
+              <tr>
+                <td><strong>列表框 (Listbox)</strong></td>
+                <td><strong>N > 5</strong><br>数据实体单选</td>
+                <td><span class="rule-chip do">DO 适用</span> 语种列表、大模型节点选择等数据项单选。</td>
+                <td><span class="rule-chip dont">DON'T 严禁</span> 严禁将数据选择误用为 Action Menu 语义；数据多选走 menuitemcheckbox（§3.1.C），不在此列。</td>
+              </tr>
+              <tr>
+                <td><strong>下拉 (Dropdown)</strong></td>
+                <td><strong>N > 5</strong><br>或低频操作</td>
+                <td><span class="rule-chip do">DO 适用</span> 选项多、屏幕空间紧张或低频设置项（入口本体度量衡见模块十三，§4.6）。</td>
+                <td><span class="rule-chip dont">DON'T 严禁</span> 严禁用于二元布尔（走 Switch）；严禁 2≤N≤5 短文案具名互斥（走 Segmented）。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 模块 3: 开关 (Switch) - 动力学居中修正 -->
+      <section class="card-panel">
+        <div class="panel-header">
+          <span>三、开关 (Switch) 规范实例群：动力学居中对称性保障</span>
+          <span class="badge-tag">消除按压偏心抖动</span>
+        </div>
+        <div class="switch-group-box">
+          <div class="m3-switch-row">
+            <div class="switch-meta">
+              <span class="switch-title">剪贴板自动监听 (Clipboard Auto Monitor)</span>
+              <span class="switch-desc">后台自动读取剪贴板译文（未激活 16px，激活 24px，按压 28px 轴心对称）</span>
+            </div>
+            <label class="m3-switch" aria-label="剪贴板自动监听开关">
+              <input type="checkbox" role="switch" checked />
+              <span class="m3-switch-track"></span>
+              <span class="m3-switch-thumb"></span>
+            </label>
+          </div>
+          <div class="m3-switch-row">
+            <div class="switch-meta">
+              <span class="switch-title">划词浮动气泡 (Selection Floating Bubble)</span>
+              <span class="switch-desc">划选文本时光标旁出现快捷浮层</span>
+            </div>
+            <label class="m3-switch" aria-label="划词浮动气泡开关">
+              <input type="checkbox" role="switch" />
+              <span class="m3-switch-track"></span>
+              <span class="m3-switch-thumb"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- 模块 4: 分段控制器 (Segmented Buttons) - 补充 M3 官方 Checkmark 与 Roving Tabindex -->
+      <section class="card-panel">
+        <div class="panel-header">
+          <span>四、分段控制器 (Segmented Buttons)：支持 Checkmark 指示与键盘导航</span>
+          <span class="badge-tag">Roving Tabindex + Arrow 切换</span>
+        </div>
+        <div class="segmented-group-box">
+          <div class="segmented-item-wrapper">
+            <div class="segmented-label-row">
+              <span>例 1：译文呈现模式 (N=2 具名互斥 · 严禁下拉)</span>
+              <span style="color: var(--md-sys-color-primary);">2 选 1 平铺</span>
+            </div>
+            <div class="m3-segmented-button-group" role="radiogroup" aria-label="译文呈现模式">
+              <button class="m3-segment-item selected m3-semantic-focus m3-interaction-node" role="radio" aria-checked="true" tabindex="0">
+                <span class="m3-state-layer"></span>
+                <svg class="m3-segment-checkmark" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>双语对照</span>
+              </button>
+              <button class="m3-segment-item m3-semantic-focus m3-interaction-node" role="radio" aria-checked="false" tabindex="-1">
+                <span class="m3-state-layer"></span>
+                <svg class="m3-segment-checkmark" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>直接替换原文</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="segmented-item-wrapper">
+            <div class="segmented-label-row">
+              <span>例 2：外观主题偏好 (N=3 并列互斥)</span>
+              <span style="color: var(--md-sys-color-primary);">3 选 1 平铺</span>
+            </div>
+            <div class="m3-segmented-button-group" role="radiogroup" aria-label="外观偏好">
+              <button class="m3-segment-item selected m3-semantic-focus m3-interaction-node" role="radio" aria-checked="true" tabindex="0">
+                <span class="m3-state-layer"></span>
+                <svg class="m3-segment-checkmark" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>跟随系统</span>
+              </button>
+              <button class="m3-segment-item m3-semantic-focus m3-interaction-node" role="radio" aria-checked="false" tabindex="-1">
+                <span class="m3-state-layer"></span>
+                <svg class="m3-segment-checkmark" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>浅色明亮</span>
+              </button>
+              <button class="m3-segment-item m3-semantic-focus m3-interaction-node" role="radio" aria-checked="false" tabindex="-1">
+                <span class="m3-state-layer"></span>
+                <svg class="m3-segment-checkmark" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <span>暗色深邃</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 模块 5: 菜单 (Menu) vs 列表框 (Listbox) -->
+      <section class="card-panel">
+        <div class="panel-header">
+          <span>五、操作菜单 (Menu) 与 数据选择列表框 (Listbox) 标准分流</span>
+          <span class="badge-tag primary">a11y 语义纠偏</span>
+        </div>
+        <div class="menu-demo-stage">
+
+          <!-- 范例 A: 操作菜单 (Menu + Menuitem) -->
+          <div class="menu-spec-column">
+            <div class="menu-dimension-indicator">
+              范例 A: 动作菜单 (role="menu")<br>
+              执行命令 · Escape 退出焦点回退
+            </div>
+            <button type="button" class="m3-btn btn-outlined m3-surface-trigger m3-semantic-focus" data-target="demo-action-menu" aria-haspopup="menu" aria-expanded="true" aria-controls="demo-action-menu">开合动作菜单（触发源示例）</button>
+            <div class="m3-elevation-surface menu-fixed-short" role="menu" aria-label="悬浮球动作菜单" id="demo-action-menu">
+              <button class="m3-item-row m3-semantic-focus m3-interaction-node" role="menuitem" tabindex="0">
+                <span class="m3-state-layer"></span>
+                <svg class="m3-item-icon" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                <span>复制翻译结果</span>
+              </button>
+              <button class="m3-item-row m3-semantic-focus m3-interaction-node" role="menuitem" tabindex="-1">
+                <span class="m3-state-layer"></span>
+                <svg class="m3-item-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+                <span>朗读原文发音</span>
+              </button>
+              <button class="m3-item-row m3-semantic-focus m3-interaction-node" role="menuitem" tabindex="-1">
+                <span class="m3-state-layer"></span>
+                <svg class="m3-item-icon" viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+                <span>锁定悬浮位置</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 范例 B: 选项列表框 (Listbox + Option) -->
+          <div class="menu-spec-column">
+            <div class="menu-dimension-indicator">
+              范例 B: 语种单选 (role="listbox")<br>
+              选中具名数据 · v3.5 兜底腿含未选中可用 option（aria-disabled 排除）
+            </div>
+            <button type="button" class="m3-btn btn-outlined m3-surface-trigger m3-semantic-focus" data-target="demo-language-listbox" aria-haspopup="listbox" aria-expanded="true" aria-controls="demo-language-listbox">开合语种列表（触发源示例）</button>
+            <div class="m3-elevation-surface listbox-scrollable" role="listbox" aria-label="目标语种选择" id="demo-language-listbox">
+              <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="option" aria-selected="true" tabindex="0">
+                <span class="m3-state-layer"></span>
+                <span>简体中文 (Chinese)</span>
+              </div>
+              <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="option" aria-selected="false" tabindex="-1">
+                <span class="m3-state-layer"></span>
+                <span>英语 (English-US)</span>
+              </div>
+              <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="option" aria-selected="false" tabindex="-1">
+                <span class="m3-state-layer"></span>
+                <span>日语 (Japanese)</span>
+              </div>
+              <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="option" aria-selected="false" tabindex="-1">
+                <span class="m3-state-layer"></span>
+                <span>韩语 (Korean)</span>
+              </div>
+              <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="option" aria-selected="false" tabindex="-1">
+                <span class="m3-state-layer"></span>
+                <span>法语 (French)</span>
+              </div>
+              <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="option" aria-selected="false" tabindex="-1">
+                <span class="m3-state-layer"></span>
+                <span>德语 (German)</span>
+              </div>
+              <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="option" aria-selected="false" tabindex="-1" aria-disabled="true" style="opacity: 0.46; cursor: default;">
+                <span class="m3-state-layer"></span>
+                <span>意大利语 (Italian·不可用)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 范例 C: 多选菜单 (Menu + menuitemcheckbox) -->
+          <div class="menu-spec-column">
+            <div class="menu-dimension-indicator">
+              范例 C: 引擎多选 (role="menuitemcheckbox")<br>
+              多选持久状态 · aria-checked · 严禁整行染色
+            </div>
+            <button type="button" class="m3-btn btn-outlined m3-surface-trigger m3-semantic-focus" data-target="demo-engine-multiselect" aria-haspopup="menu" aria-expanded="true" aria-controls="demo-engine-multiselect">开合引擎多选（触发源示例）</button>
+            <div class="m3-elevation-surface menu-fixed-short" role="menu" aria-label="翻译引擎多选" id="demo-engine-multiselect">
+              <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="menuitemcheckbox" aria-checked="true" tabindex="0">
+                <span class="m3-checkbox"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+                <span>Google-Translate-v2</span>
+              </div>
+              <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="menuitemcheckbox" aria-checked="true" tabindex="-1">
+                <span class="m3-checkbox"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+                <span>agnes-3.0-flash</span>
+              </div>
+              <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="menuitemcheckbox" aria-checked="false" tabindex="-1">
+                <span class="m3-checkbox"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+                <span>DeepL Professional</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 模块 6: 标签与输入框修复 -->
+      <div class="card-grid-2">
+        <section class="card-panel">
+          <div class="panel-header">
+            <span>六、标签组 (Chips)：触控热区绝不裁切</span>
+            <span class="badge-tag tertiary">48px 垫片防裁切</span>
+          </div>
+          <div class="chip-container" role="group" aria-label="词汇特性">
+            <button class="m3-chip selected m3-interaction-node" aria-pressed="true">
+              <span class="m3-state-layer"></span>
+              <span>常规专业词汇 (Secondary)</span>
+            </button>
+            <button class="m3-chip tertiary-accent selected m3-interaction-node" aria-pressed="true">
+              <span class="m3-state-layer"></span>
+              <span>✦ AI 深度释义 (Tertiary)</span>
+            </button>
+            <div class="m3-chip m3-chip-static">
+              <span>仅展示标签（非交互·无语义负向样本）</span>
+            </div>
+          </div>
+          <p style="font-size: 12px; color: var(--md-sys-color-on-surface-variant); margin-top: 8px;">
+            💡 状态层水波纹下沉到内部独立节点，<code>overflow: visible</code> 确保移动端 48px 触控垫片完全释放。两枚交互 Chip 未挂 <code>.m3-semantic-focus</code>（染层型：focus 染层为唯一焦点指示、零环样式键）；虚线静态标签为无语义负向样本（不可聚焦、样式文本零任何焦点键，§6.4 负向锁示范）。
+          </p>
+        </section>
+
+        <section class="card-panel">
+          <div class="panel-header">
+            <span>七、文本框 (TextField)：动态级联背景遮罩</span>
+            <span class="badge-tag">消除白块穿帮</span>
+          </div>
+          <div class="m3-text-field">
+            <input type="text" id="target-domain" class="m3-text-field-input" placeholder=" " value="学术论文 / 医学领域" />
+            <label for="target-domain" class="m3-text-field-label">目标术语库 (聚焦染主色，失焦自动回退灰调)</label>
+          </div>
+        </section>
+      </div>
+
+      <!-- 模块 7: 插件 Shadow DOM 沙箱运行示范 -->
+      <section class="card-panel">
+        <div class="panel-header">
+          <span>八、真实 Web Component 插件沙箱 (Shadow DOM 完全隔离)</span>
+          <span class="badge-tag primary">防宿主 CSS 污染</span>
+        </div>
+        <div class="host-mock-wrapper">
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 12px;">
+            ⚠️ 下方区域模拟被宿主激进样式污染的环境（宿主声明了 <code>button { line-height: 3; font-size: 22px !important; }</code>）：
+          </p>
+          <m3-floating-bubble-sandbox></m3-floating-bubble-sandbox>
+        </div>
+      </section>
+
+      <!-- 注释模块 8（可见号九）: 无障碍焦点环配对法则 -->
+      <section class="card-panel">
+        <div class="panel-header">
+          <span>九、无障碍焦点环配对法则 (Focus Ring Pairing Law)</span>
+          <span class="badge-tag primary">独立验收域</span>
+        </div>
+        <p style="font-size: 12px; color: var(--md-sys-color-on-surface-variant); margin-bottom: 8px;">
+          焦点环配对独立纳入审计（§6.2/§6.3 导航算法细节维持排除口径，不互含、不互豁免）。四条铁律：
+        </p>
+        <p style="font-size: 12px; margin-bottom: 6px;">
+          <strong>① 无语义必无环：</strong>未接入键盘导航与 ARIA 语义（无 roving tabindex、无 menu/listbox/option/combobox 角色、无键盘事件接线）的组件，严禁渲染任何形态焦点环（<code>:focus-visible</code> 样式、<code>.Mui-focusVisible</code> 覆盖、outline/box-shadow 环均在内）。
+        </p>
+        <p style="font-size: 12px; margin-bottom: 6px;">
+          <strong>② 有语义必有环：</strong>已接入无障碍语义的组件必须配对焦点环，环必须挂键盘语境伪类 <code>:focus-visible</code>（严禁挂输入方式无关的 <code>.Mui-focusVisible</code> 类——鼠标链路会误显环）；forced-colors 模式必须提供 outline 兜底形态（<code>CanvasText</code> 系统关键字，兜底块置于同选择器 <code>:focus-visible</code> 规则之后，顺序闸）。
+        </p>
+        <p style="font-size: 12px; margin-bottom: 6px;">
+          <strong>③ 静默作用域一致：</strong>指针静默机制（focusModality 标记＋抑制 CSS）注入域必须与焦点环样式作用域一致——自建 ThemeProvider 的域若画环必须同步接入静默机制，任一单侧存在判配对断裂。
+        </p>
+        <p style="font-size: 12px; margin-bottom: 0;">
+          <strong>④ 夹具双向钉死：</strong>有语义处断言环形态（<code>:focus-visible</code> 键＋forced-colors 兜底），无语义处负向锁断言环样式键不存在。本项夹具与测试此前完全缺失（焦点环缺陷靠用户报告才发现、多轮才收敛），列为最高优先盲区，缺失即红。
+        </p>
+        <p style="font-size: 12px; margin-bottom: 6px;">
+          <strong>⑤ 焦点指示单形原则（v3.3，v3.5 补 forced-colors 例外）：</strong>同一节点同一焦点态下 focus 染层与 outline 环不得双显——环型语义类（挂 <code>.m3-semantic-focus</code>：范例 A/B/C 菜单项、分段项、触发钮、胶囊成员）以 outline 环为唯一键盘焦点指示、focus 染层互斥禁用；染层型（Chip 等未挂该类节点）以 0.12 染层为唯一指示、严禁另画环（<strong>v3.5 唯一例外</strong>：forced-colors 下染层被固化为不透明系统色而失效，必须以 2px <code>CanvasText</code> outline 兜底，不构成单形违反）；无语义不可聚焦节点两者皆无、亦无 forced-colors 兜底。
+        </p>
+        <p style="font-size: 12px; margin-bottom: 0;">
+          <strong>⑥ 本页实现现状（v3.5）：</strong>环型语义类统一挂 <code>.m3-semantic-focus</code>，<code>:focus-visible</code> outline 环＋forced-colors（<code>CanvasText</code>）兜底块（置于环规则之后，顺序闸；v3.5 起同模板覆盖染层型节点）；focusModality 指针静默为<strong>逐元素 landed 校验标记</strong>（<code>data-kt-focus-silent</code>，scriptFocus 单一入口零裸 <code>.focus()</code>，见样式表 [v3.5 §6.4] 段与脚本 1.5 节）；模块五触发源入焦按 v3.5 优先级交付（选中 option → 未选中可用 option → menuitem 族，<code>aria-disabled</code> 排除、宁缺勿错）；菜单容器水平预留 4px padding 防 <code>overflow</code> 裁环。模块六 Chip 为染层型/无语义对照样本——不挂 <code>.m3-semantic-focus</code>、零环样式键。锁契约见规范附录 A。
+        </p>
+      </section>
+
+      <!-- 注释模块 9（可见号十）: 下拉入口本体度量衡与语义配对 -->
+      <section class="card-panel">
+        <div class="panel-header">
+          <span>十、下拉入口（触发框）本体度量衡与语义配对 (Trigger Entry Audit)</span>
+          <span class="badge-tag">入口本体入锁</span>
+        </div>
+        <p style="font-size: 12px; margin-bottom: 6px;">
+          <strong>入口本体纳入审计与锁：</strong>真下拉（MUI Select / combobox）与伪下拉（自绘菜单触发钮）一律适用；下游菜单内部合规不得替代或豁免入口本体检查。
+        </p>
+        <p style="font-size: 12px; margin-bottom: 6px;">
+          <strong>几何与字体逐项入锁：</strong>入口高度、padding、圆角、字号、字重、行高、文本溢出（<code>ellipsis</code>）逐项须有夹具与测试钉住，缺锁即红。
+        </p>
+        <p style="font-size: 12px; margin-bottom: 6px;">
+          <strong>选型铁律同树约束：</strong>入口控件类型同样受排他性决策树约束（二元布尔误用下拉、2≤N≤5 短文案误用下拉等即红），不得因下游菜单合规而豁免。
+        </p>
+        <p style="font-size: 12px; margin-bottom: 6px;">
+          <strong>语义配对登记：</strong>入口必须声明 <code>aria-haspopup</code>、<code>aria-expanded</code> 与 <code>aria-controls</code>（v3.3 声明义务），开合变更必须同步翻转 <code>aria-expanded</code>（翻转义务），并登记下游菜单语义类型（动作菜单 / 数据单选 / 数据多选）——入口与下游类型不匹配即红。本页范例 A/B 触发钮已按声明＋翻转义务接线（<code>aria-haspopup</code> / <code>aria-expanded</code> / <code>aria-controls</code>＋toggle 同步翻转＋Escape 回退）。
+        </p>
+        <p style="font-size: 12px; margin-bottom: 6px;">
+          <strong>状态与回退：</strong>hover/active/focusVisible 保留 State Layer 瞬时反馈；焦点环遵守模块九配对法则；<code>Escape</code> 收起浮层后焦点必须回退至入口本体（opener 接线义务）。
+        </p>
+        <p style="font-size: 12px; color: var(--md-sys-color-on-surface-variant); margin-bottom: 0;">
+          💡 已知载体（非穷尽，以 grep 盘点为准）：悬浮球菜单、划词翻译菜单、FileTranslate 域 SettingsSelect / ScenePromptSelect、Options 域 SettingsSelect / DropdownRoot 系、ContentFab 触发钮、TranslationPanel/Header 触发钮、subtitle/Menus、Popup 伪下拉（combobox＋listbox）、ImageTranslate/DualActionButton（假分体成员，§5.5）。
+        </p>
+      </section>
+
+      <!-- 模块 11（可见号十一）: 窄屏/移动端与视口边界演示（§4.5/§4.7，v3.3 新增） -->
+      <section class="card-panel">
+        <div class="panel-header">
+          <span>十一、窄屏 / 移动端与视口边界 (§4.5 宽度钳制 · §4.7 行为基线)</span>
+          <span class="badge-tag">视口兜底演示</span>
+        </div>
+        <p style="font-size: 12px; color: var(--md-sys-color-on-surface-variant); margin: 0 0 8px;">
+          拖动下方演示台右下角把手收缩宽度（纯 CSS <code>resize</code>，无 JS 布局分支）：内部改向走<strong>容器查询</strong>（≤480px 时设置行 <code>flex-direction: column</code> 且显式声明 <code>align-items: stretch</code> 交叉轴，§4.7）；菜单宽度受 <code>min(280px, 100%)</code> 容器钳制演示（真实宿主环境为 <code>min(280px, calc(100vw - 24px))</code> 视口兜底，§4.5），长文本项演示 <code>ellipsis</code> 截断。
+        </p>
+        <div class="m3-viewport-stage">
+          <div class="m3-settings-row">
+            <span class="m3-settings-label">翻译引擎多选（窄容器改向演示行）</span>
+            <label class="m3-switch" aria-label="演示行开关">
+              <input type="checkbox" role="switch" />
+              <span class="m3-switch-track"></span>
+              <span class="m3-switch-thumb"></span>
+            </label>
+          </div>
+          <button type="button" class="m3-btn btn-outlined m3-surface-trigger m3-semantic-focus" data-target="demo-viewport-menu" aria-haspopup="menu" aria-expanded="true" aria-controls="demo-viewport-menu">开合窄舞台菜单</button>
+          <div class="m3-elevation-surface menu-fixed-short" role="menu" aria-label="视口钳制演示菜单" id="demo-viewport-menu">
+            <button type="button" class="m3-item-row m3-semantic-focus m3-interaction-node" role="menuitem" tabindex="0">
+              <span class="m3-state-layer"></span>
+              <span>翻译选中文本</span>
+            </button>
+            <button type="button" class="m3-item-row m3-semantic-focus m3-interaction-node" role="menuitem" tabindex="-1">
+              <span class="m3-state-layer"></span>
+              <span>朗读原文发音（超长文本项演示 ellipsis 截断与容器宽度钳制）</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 模块 12（可见号十二）: 胶囊按钮组·假分体（§5.5，v3.3 新增） -->
+      <section class="card-panel">
+        <div class="panel-header">
+          <span>十二、胶囊按钮组·假分体 (§5.5 Capsule Group)</span>
+          <span class="badge-tag primary">真 split button 排除</span>
+        </div>
+        <p style="font-size: 12px; color: var(--md-sys-color-on-surface-variant); margin: 0 0 8px;">
+          真 split button 已被 M3 移除，官方替代＝<strong>两个独立按钮 / button group</strong>（§5.5 排除性铁律）；本组件为其胶囊收紧形态：<code>role="group"</code>＋<code>aria-label</code>、成员为完整 button、外全圆/内 4px/gap 2px、<strong>组壳不造环</strong>（焦点环交成员 §6.4 环型语义类 <code>.m3-semantic-focus</code>）、leading 携 <code>aria-haspopup</code>、trailing 携 <code>aria-expanded</code>＋<code>aria-controls</code>（翻转义务已接线）、窄屏退化为 icon-only 且显式携带 <code>aria-label</code>（textContent 保留供搜索命中，WCAG 4.1.2）。仓库真载体：<code>ImageTranslate/DualActionButton.js</code>（规范 §5.5 真载体登记）。
+        </p>
+        <div class="m3-capsule-group" role="group" aria-label="图片翻译操作组">
+          <button type="button" class="m3-btn m3-capsule-member m3-semantic-focus m3-interaction-node" aria-haspopup="menu" aria-label="更多操作">
+            <span class="m3-state-layer"></span>
+            <svg class="m3-item-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+            <span class="m3-capsule-text">更多操作</span>
+          </button>
+          <button type="button" id="demo-capsule-translate" class="m3-btn m3-capsule-member m3-semantic-focus m3-interaction-node" aria-expanded="false" aria-controls="demo-capsule-panel" aria-label="翻译本区">
+            <span class="m3-state-layer"></span>
+            <svg class="m3-item-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>
+            <span class="m3-capsule-text">翻译本区</span>
+          </button>
+        </div>
+        <div id="demo-capsule-panel" hidden style="font-size: 12px; color: var(--md-sys-color-on-surface-variant);">
+          本区域由「翻译本区」成员受控展开（<code>aria-controls</code> 指向本节点；折叠隐藏仅 <code>hidden</code>＋<code>display:none</code>，无冗余 <code>aria-hidden</code>，§4.7）。
+        </div>
+      </section>
+
+      <!-- 模块 13: 下拉入口本体度量衡与语义配对（§4.6，v3.5 补齐） -->
+      <section class="card-panel">
+        <div class="panel-header">
+          <span>十三、下拉入口本体度量衡与语义配对 (§4.6 Entry Body)</span>
+          <span class="badge-tag">入口本体入锁</span>
+        </div>
+        <p style="font-size: 12px; color: var(--md-sys-color-on-surface-variant); margin: 0 0 8px;">
+          入口（触发框）本体与下游菜单同样受审计与夹具锁约束（下游菜单合规不豁免入口本体）：高度 40 · padding 0 12 · 圆角 4 · 字号 14 · 字重 500 · 长值 <code>ellipsis</code>（禁止换行）；必须声明 <code>aria-haspopup</code>（与下游语义配对：本例数据单选 → <code>listbox</code>）＋<code>aria-expanded</code>＋<code>aria-controls</code>；hover/active/focusVisible 走 State Layer 瞬时反馈、焦点环遵守模块九配对法则；<code>Escape</code> 收起后焦点回退至入口本体（opener 接线义务）。选型铁律同树约束：二元布尔走 Switch、2≤N≤5 短文案具名互斥走 Segmented（模块二矩阵），下游合规不得豁免入口选型检查。
+        </p>
+        <button type="button" class="m3-select-entry m3-semantic-focus m3-interaction-node" data-target="demo-entry-listbox" aria-haspopup="listbox" aria-expanded="false" aria-controls="demo-entry-listbox">
+          <span class="m3-state-layer"></span>
+          <span class="m3-entry-value">学术论文 / 医学领域术语库（超长值演示 ellipsis 截断）</span>
+          <svg class="m3-item-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5z"/></svg>
+        </button>
+        <div class="m3-elevation-surface" role="listbox" aria-label="入口本体演示列表" id="demo-entry-listbox" hidden>
+          <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="option" aria-selected="true" tabindex="0">
+            <span class="m3-state-layer"></span><span>学术论文 / 医学领域</span>
+          </div>
+          <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="option" aria-selected="false" tabindex="-1">
+            <span class="m3-state-layer"></span><span>法律法规 / 合同文本</span>
+          </div>
+          <div class="m3-item-row m3-semantic-focus m3-interaction-node" role="option" aria-selected="false" tabindex="-1">
+            <span class="m3-state-layer"></span><span>日常口语 / 社交媒体</span>
+          </div>
+        </div>
+        <div class="menu-dimension-indicator" style="margin-top: 8px;">
+          本体度量：height 40 · padding 0 12 · radius 4 · font 14/500 · ellipsis · aria-haspopup="listbox"＋aria-expanded＋aria-controls
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- 交互逻辑：补齐 W3C a11y 算法边界与焦点回退机制 -->
+  <script>
+    // 1. 沙箱内主题切换（仅变更沙箱 data-theme，绝对不修改宿主 body）
+    const sandboxRoot = document.getElementById('m3-sandbox-root');
+    const themeBtn = document.getElementById('theme-toggle-btn');
+    themeBtn.addEventListener('click', () => {
+      const isDark = sandboxRoot.getAttribute('data-theme') === 'dark';
+      const newTheme = isDark ? 'light' : 'dark';
+      sandboxRoot.setAttribute('data-theme', newTheme);
+      // 同步给沙箱内的 Web Component
+      const pluginDemo = document.querySelector('m3-floating-bubble-sandbox');
+      if (pluginDemo) pluginDemo.setAttribute('data-theme', newTheme);
+    });
+
+    // 1.5 focusModality 指针静默（§6.4 静默作用域一致）＋ scriptFocus 单一入口
+    // （§6.5）：模态二态（pointerdown 置指针、keydown 置键盘，互斥切换）＋
+    // 逐元素 landed 校验标记——指针模态下脚本聚焦且 focus 实际落地才标记
+    // data-kt-focus-silent（focus 未落地不标记，防 focusout 永不发生留下永不
+    // 清理的抑制标记）；键盘模态恢复（移除全部标记）。抑制 CSS 与焦点环同
+    // 注入域（见样式表 [v3.5 §6.4] 段）。机制语义对齐 src/hooks/focusModality.js
+    // 与 §6.5「scriptFocus 单一入口、零裸 .focus()」。
+    let keyboardModality = false;
+    const scriptFocus = (element) => {
+      if (!element || typeof element.focus !== 'function') return false;
+      element.focus({ preventScroll: true }); // 脚本聚焦不拖宿主页面滚动
+      const landed = document.activeElement === element;
+      if (landed) {
+        if (keyboardModality) element.removeAttribute('data-kt-focus-silent');
+        else element.setAttribute('data-kt-focus-silent', 'true');
+      }
+      return landed;
+    };
+    // 滚动同步义务（§6.5）：preventScroll 把滚动责任转移给弹层方——脚本聚焦
+    // 后必须把焦点项滚入滚动容器可视区，否则「焦点在视区外项、滚动条停滞」
+    // 即焦点与滚动条脱节（PopupMenu.js focusFirstItem 实证缺陷口径：手算视
+    // 口矩形增量、只调容器自身 scrollTop，禁用会波及宿主页面的全局
+    // scrollIntoView）。对非滚动容器为无操作。
+    const scrollItemIntoView = (container, item) => {
+      const cTop = container.getBoundingClientRect().top;
+      const iTop = item.getBoundingClientRect().top;
+      const iBottom = iTop + item.offsetHeight;
+      const cBottom = cTop + container.clientHeight;
+      if (iTop < cTop) container.scrollTop += iTop - cTop;
+      else if (iBottom > cBottom) container.scrollTop += iBottom - cBottom;
+    };
+    window.addEventListener('pointerdown', () => { keyboardModality = false; }, true);
+    window.addEventListener('keydown', () => {
+      if (keyboardModality) return;
+      keyboardModality = true;
+      // 键盘模态恢复：清空全部静默标记（含指针期遗留），环形态对键盘聚焦恢复
+      document.querySelectorAll('[data-kt-focus-silent="true"]')
+        .forEach((el) => el.removeAttribute('data-kt-focus-silent'));
+    }, true);
+
+    // 2. 分段控制器 (Roving Tabindex + 方向键切换)
+    document.querySelectorAll('.m3-segmented-button-group').forEach(group => {
+      const items = Array.from(group.querySelectorAll('.m3-segment-item'));
+      const selectIndex = (index) => {
+        items.forEach((item, i) => {
+          const isSelected = i === index;
+          item.classList.toggle('selected', isSelected);
+          item.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+          item.setAttribute('tabindex', isSelected ? '0' : '-1');
+        });
+      };
+
+      items.forEach((btn, index) => {
+        btn.addEventListener('click', () => selectIndex(index));
+        btn.addEventListener('keydown', (e) => {
+          let nextIndex = index;
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            nextIndex = (index + 1) % items.length;
+          } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            nextIndex = (index - 1 + items.length) % items.length;
+          } else if (e.key === 'Home') {
+            nextIndex = 0;
+          } else if (e.key === 'End') {
+            nextIndex = items.length - 1;
+          } else {
+            return;
+          }
+          e.preventDefault();
+          e.stopPropagation(); // 宿主事件强阻断：方向键不得泄漏至宿主页面
+          selectIndex(nextIndex);
+          scriptFocus(items[nextIndex]);
+        });
+      });
+    });
+
+    // 3. 通用垂直键盘导航算法 (完美修正 currentIndex === -1 时 ArrowUp 越界倒数第 2 项的 Bug)
+    function setupVerticalKeyNav(container, itemSelector, onSelect) {
+      container.addEventListener('keydown', (e) => {
+        // aria-disabled 项不参与键盘导航与焦点交付（§6.5 兜底腿排除口径）
+        const items = Array.from(
+          container.querySelectorAll(`${itemSelector}:not([aria-disabled="true"])`)
+        );
+        if (items.length === 0) return;
+        const currentActive = document.activeElement;
+        const currentIndex = items.indexOf(currentActive);
+
+        let targetIndex = -1;
+        if (e.key === 'ArrowDown') {
+          targetIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % items.length;
+        } else if (e.key === 'ArrowUp') {
+          // [算法修复] currentIndex 为 -1 时，首次按 ArrowUp 正确命中末尾项 (length - 1)
+          targetIndex = currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
+        } else if (e.key === 'Home') {
+          targetIndex = 0;
+        } else if (e.key === 'End') {
+          targetIndex = items.length - 1;
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          // [规范 6.3] 严禁盲目 blur（焦点会掉进 document.body）：必须显式回退到
+          // 打开该浮层的触发源。触发源引用由 opener 挂载（见 .m3-surface-trigger 接线）。
+          e.stopPropagation(); // 阻止泄漏宿主：宿主全局弹窗/快捷键不得被误触发
+          const trigger = container._m3TriggerElement;
+          if (trigger && document.contains(trigger)) {
+            // [v3.3 §4.6 翻转义务] Escape 收起浮层：可见性、aria-expanded 与
+            // 焦点回退三者同步（§6.3 opener 接线）
+            container.hidden = true;
+            if (trigger.getAttribute('aria-expanded') === 'true') {
+              trigger.setAttribute('aria-expanded', 'false');
+            }
+            scriptFocus(trigger);
+          }
+          return;
+        } else {
+          return;
+        }
+
+        // [宿主事件强阻断] preventDefault 只拦默认行为，事件仍会冒泡出 Shadow DOM
+        // 触发宿主页面全局快捷键；Content Script 内所有键盘监听必须同步阻断冒泡。
+        e.preventDefault();
+        e.stopPropagation();
+        scriptFocus(items[targetIndex]);
+        scrollItemIntoView(container, items[targetIndex]);
+        if (onSelect) onSelect(items[targetIndex], items);
+      });
+    }
+
+    // 绑定 Action Menu (纯动作，不保留选中态)
+    const actionMenu = document.getElementById('demo-action-menu');
+    setupVerticalKeyNav(actionMenu, '.m3-item-row');
+
+    // 绑定视口钳制演示菜单（模块十一，键盘导航与 Escape 回退同规格）
+    const viewportMenu = document.getElementById('demo-viewport-menu');
+    if (viewportMenu) setupVerticalKeyNav(viewportMenu, '.m3-item-row');
+
+    // 绑定入口本体演示列表（模块十三，§4.6）：键盘导航/Escape 回退与范例 B
+    // 同规格；选项点击持久选定（aria-selected 互斥）并回写入口值。
+    const entryListbox = document.getElementById('demo-entry-listbox');
+    if (entryListbox) {
+      const entryBtn = document.querySelector('[data-target="demo-entry-listbox"]');
+      const entryValue = entryBtn.querySelector('.m3-entry-value');
+      const entryOptions = Array.from(entryListbox.querySelectorAll('[role="option"]'));
+      setupVerticalKeyNav(entryListbox, '[role="option"]');
+      entryOptions.forEach(opt => {
+        opt.addEventListener('click', () => {
+          entryOptions.forEach(o => o.setAttribute('aria-selected', o === opt ? 'true' : 'false'));
+          entryValue.textContent = opt.textContent.trim();
+        });
+      });
+    }
+
+    // 绑定 Listbox (数据单选，回车/空格/点击持久选中并标记 aria-selected)
+    const langListbox = document.getElementById('demo-language-listbox');
+    const options = Array.from(langListbox.querySelectorAll('[role="option"]'));
+    const markSelected = (selectedOption) => {
+      if (selectedOption.getAttribute('aria-disabled') === 'true') return; // 不可用项不参与选定
+      options.forEach(opt => {
+        const isSelected = opt === selectedOption;
+        opt.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+      });
+    };
+    setupVerticalKeyNav(langListbox, '[role="option"]');
+    options.forEach(opt => {
+      opt.addEventListener('click', () => markSelected(opt));
+      opt.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation(); // 宿主事件强阻断：Space/Enter 不得触发宿主可聚焦元素
+          markSelected(opt);
+        }
+      });
+    });
+
+    // 触发源接线（规范 6.3）：opener 打开浮层时必须挂载触发元素引用，
+    // Escape 焦点回退依赖该引用；缺失引用时绝不盲目 blur。
+    document.querySelectorAll('[data-target]').forEach(btn => {
+      const surface = document.getElementById(btn.dataset.target);
+      if (!surface) return;
+      // §6.3 opener 接线义务：引用在 setup 期即挂载（含初始 hard-coded 展开
+      // 的演示浮层）——仅 click 期挂载会让预展开态的 Escape 回退拿不到引用。
+      surface._m3TriggerElement = btn;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        surface._m3TriggerElement = btn;
+        // [v3.3 §4.6 声明＋翻转义务] 开合变更在同一事件流内同步翻转 aria-expanded
+        // 并切换浮层可见性（状态与视觉同步，杜绝「只改状态不改视觉」反模式）；
+        // 仅展开方向把焦点推入浮层首项，收起方向焦点留在触发钮本体。
+        const willOpen = btn.getAttribute('aria-expanded') !== 'true';
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        surface.hidden = !willOpen;
+        if (willOpen) {
+          // [v3.5 §6.5 初始焦点优先级] 选中 option → 未选中可用 option
+          // （listbox 载体兜底腿，aria-disabled 排除）→ menuitem 族首可用项；
+          // 找不到可聚焦项就不聚焦（宁缺勿错），严禁容器兜底腿。
+          const entry =
+            surface.querySelector('[role="option"][aria-selected="true"]') ||
+            surface.querySelector('[role="option"]:not([aria-disabled="true"])') ||
+            surface.querySelector(
+              '[role="menuitem"]:not([aria-disabled="true"]), [role="menuitemcheckbox"]:not([aria-disabled="true"]), .m3-item-row:not([aria-disabled="true"])'
+            );
+          scriptFocus(entry);
+          scrollItemIntoView(surface, entry);
+        }
+      });
+    });
+
+    // 范例 C: menuitemcheckbox 多选切换（勾选语义 = aria-checked，多选持久保留，
+    // 选中仅染前置 Checkbox 本体，严禁整行染色）
+    const engineMenu = document.getElementById('demo-engine-multiselect');
+    engineMenu.querySelectorAll('[role="menuitemcheckbox"]').forEach(item => {
+      const toggle = () => {
+        item.setAttribute('aria-checked', item.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+      };
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggle();
+      });
+      item.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation(); // 宿主事件强阻断
+          toggle();
+        }
+      });
+    });
+    setupVerticalKeyNav(engineMenu, '[role="menuitemcheckbox"]');
+
+    // 4. Chip 切换 (保持 outlined 与 selected 转换，剔除 opacity: 0.4；
+    //    .m3-chip-static 为无语义负向样本，不接交互)
+    document.querySelectorAll('.m3-chip:not(.m3-chip-static)').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const isSelected = chip.classList.contains('selected');
+        chip.classList.toggle('selected', !isSelected);
+        chip.setAttribute('aria-pressed', (!isSelected).toString());
+      });
+    });
+
+    // 4.5 胶囊按钮组（§5.5）翻转义务示范：trailing 成员开合受控区域并同步翻转 aria-expanded
+    const capsuleTranslateBtn = document.getElementById('demo-capsule-translate');
+    const capsulePanel = document.getElementById('demo-capsule-panel');
+    if (capsuleTranslateBtn && capsulePanel) {
+      capsuleTranslateBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const willOpen = capsuleTranslateBtn.getAttribute('aria-expanded') !== 'true';
+        capsuleTranslateBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false'); // §4.6 翻转义务
+        capsulePanel.hidden = !willOpen; // 折叠仅 hidden+display:none（§4.7）
+      });
+    }
+
+    // 5. 声明纯净的 Web Component 悬浮球沙箱组件
+    class M3FloatingBubbleSandbox extends HTMLElement {
+      static get observedAttributes() { return ['data-theme']; }
+
+      constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+      }
+
+      attributeChangedCallback(name, oldValue, newValue) {
+        if (name === 'data-theme' && this.shadowRoot) {
+          const root = this.shadowRoot.querySelector('.m3-isolated-wrapper');
+          if (root) root.setAttribute('data-theme', newValue);
+        }
+      }
+
+      connectedCallback() {
+        this.render();
+      }
+
+      render() {
+        const theme = this.getAttribute('data-theme') || 'light';
+        this.shadowRoot.innerHTML = `
+          <style>
+            :host {
+              display: inline-block;
+              box-sizing: border-box;
+            }
+            /* 隔离容器：在第一级内部 div 声明 all: initial，严禁在 :host 破坏变量继承 */
+            .m3-isolated-wrapper {
+              all: initial;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              display: inline-flex;
+              align-items: center;
+              gap: 8px;
+              padding: 8px 16px;
+              border-radius: 9999px;
+              background-color: var(--md-sys-color-surface-container-high, #e9ecec);
+              color: var(--md-sys-color-on-surface, #191c1c);
+              border: 1px solid var(--md-sys-color-outline-variant, #bfc8c9);
+              box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+              user-select: none;
+              cursor: pointer;
+            }
+            /* [Token 统一铁律] Shadow DOM 内严禁硬编码 Hex：CSS 自定义属性天然
+               穿透 Shadow 边界且不被 all 重置。暗色态只做 Token 重映射，组件
+               一律消费 var(token, fallback)，重映射即对整个子树生效。 */
+            .m3-isolated-wrapper[data-theme="dark"] {
+              --md-sys-color-surface-container-high: #252b2b;
+              --md-sys-color-on-surface: #e1e3e3;
+              --md-sys-color-outline-variant: #3f484a;
+              --md-sys-color-primary: #4fd8eb;
+              --md-sys-color-on-primary: #00363d;
+              background-color: var(--md-sys-color-surface-container-high, #252b2b);
+              color: var(--md-sys-color-on-surface, #e1e3e3);
+              border-color: var(--md-sys-color-outline-variant, #3f484a);
+            }
+            .badge-icon {
+              width: 22px; height: 22px; border-radius: 50%;
+              background: var(--md-sys-color-primary, #006874);
+              color: var(--md-sys-color-on-primary, #ffffff);
+              display: flex; align-items: center; justify-content: center;
+              font-size: 11px; font-weight: bold;
+            }
+          </style>
+          <div class="m3-isolated-wrapper" data-theme="${theme}">
+            <span class="badge-icon">M3</span>
+            <span style="font-size: 13px; font-weight: 500;">Shadow DOM 沙箱已挂载 (免疫外部宿主 CSS 污染)</span>
+          </div>
+        `;
+      }
+    }
+    customElements.define('m3-floating-bubble-sandbox', M3FloatingBubbleSandbox);
+  </script>
+</body>
+</html>
