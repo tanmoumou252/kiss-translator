@@ -45,7 +45,7 @@ export function clampGripMemoryHeight(
 // root fill 随资产族而变：描边族 fill="none"，填充族（点阵/波点）
 // root fill="currentColor" 供 circle/path 继承；混合族（星芒/除号/百分号/伴
 // 星）root fill="none" 且各填充圆自带 fill="currentColor"。图形数据一律按
-// 计划「SVG 资产索引表」从 .kilo/输入框拉伸手柄样式全集.md 逐条照抄，严禁重绘。
+// SVG 资产索引表逐条照抄，严禁重绘。
 const GRIP_SVGS = {
   "concentric-smooth": {
     fill: "none",

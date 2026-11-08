@@ -967,8 +967,7 @@ describe("TextareaResizeGrip", () => {
 
       expect(gripCss).toContain("cursor:url(data:image/png;base64,");
       // Emotion 序列化会去掉逗号后空格（", ns-resize" → ",ns-resize"），
-      // 故此断言不含空格（计划原断言 ") 16 16, ns-resize" 与序列化产物
-      // 不符，属事实纠偏，见证据日志）。
+      // 故此断言不含空格。
       expect(gripCss).toContain(") 16 16,ns-resize");
     } finally {
       await act(async () => root.unmount());
