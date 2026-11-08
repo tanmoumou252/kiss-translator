@@ -2971,7 +2971,7 @@ describe("TerminologyPlayground", () => {
         .getAttribute("data-state")
     ).toBe("delivered");
 
-    // 删掉该行（R4 现场证据）→ missing。
+    // 删掉该行 → missing。
     mockApiTranslateWithCapture({
       reqUserMsg: {
         role: "user",
@@ -4403,7 +4403,7 @@ test("C1 Red：maskForDisplay 对零 own 键非纯对象返回类型标签而非
   });
   // 数组完全不变。
   expect(maskForDisplay([{ a: 1 }])).toEqual([{ a: 1 }]);
-  // 带 own 可枚举键的类实例：E1 窄门闸不吞掩码内容（green-to-green 锁定）。
+  // 带 own 可枚举键的类实例：窄门闸不吞掩码内容（green-to-green 锁定）。
   class WithOwnKey {
     constructor() {
       this.token = "secret";
@@ -4458,7 +4458,7 @@ describe("TerminologyPlayground textarea grip style", () => {
     act(() => root.unmount());
   });
 
-  // 意见 A：grip 样式切到 hidden 时自动释放会话高度锁（红：现实现残留
+  // grip 样式切到 hidden 时自动释放会话高度锁（红：现实现残留
   // kt-height-locked 与内联高度，字段被永久钉死）。
   test("switching to hidden releases the session height lock", async () => {
     mockUseTextareaGripStyle.mockReturnValue("concentric-smooth");

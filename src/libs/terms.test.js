@@ -1269,7 +1269,7 @@ describe("terms 严格非法输入诊断", () => {
 //     命中自身去转义文本，双 key 不同则必然无冲突——零编译跳过；
 //   ② 按 key 预编译：非白名单对的正则每个 key 只编译一次。
 // 白名单文法反例锁定：\d 的被转义字符 d 不是元字符，不得判为字面量，
-// 否则 \d × 5 的 conflicting-pattern 检出会被漏掉（B3）。
+// 否则 \d × 5 的 conflicting-pattern 检出会被漏掉。
 describe("terms 冲突分析引擎加固", () => {
   function installCountingRegExp() {
     const RealRegExp = RegExp;
@@ -1327,7 +1327,7 @@ describe("terms 冲突分析引擎加固", () => {
     expect(fullDelta - fastDelta).toBe(0);
   });
 
-  test("B3 锁定：\\d × 5 与 \\w × A 的 conflicting-pattern 必须检出", () => {
+  test("\\d × 5 与 \\w × A 的 conflicting-pattern 必须检出", () => {
     for (const input of ["\\d,数字;5,five", "\\w,词;A,甲"]) {
       const parsed = parseTerms(input);
       expect(parsed.hasErrors).toBe(true);

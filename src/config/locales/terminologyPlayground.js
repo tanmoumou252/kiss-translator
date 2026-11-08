@@ -763,7 +763,7 @@ export const TERMINOLOGY_PLAYGROUND_I18N = {
     "AI terimleri",
     "Thuật ngữ AI"
   ),
-  // 示例术语 zorp / quzzle 为造词，全语言保持不变；样例文本已按 B3 改为
+  // 示例术语 zorp / quzzle 为造词，全语言保持不变；样例文本已改为
   // TerminologyPlayground 模块常量 AI_TERMS_SAMPLE_TEXT（功能数据不进 i18n），
   // 原 terminology_playground_terms_sample 条目随之删除（无引用孤儿 key）。
   terminology_playground_terms_count: terminologyPlaygroundText(
